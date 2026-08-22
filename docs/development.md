@@ -38,6 +38,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 2 complete** — PostgreSQL schema (`database/schema.sql`), seeds (`database/seed.sql`), `db.js` migrate/seed scripts.
+**Phase 3 complete** — Express foundation: `/api/v1`, error handling, Zod validation, categories read endpoints.
 
-**Next: Phase 3** — Express backend foundation (error handling, API structure).
+**Next: Phase 4** — JWT authentication.
