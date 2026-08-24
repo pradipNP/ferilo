@@ -64,6 +64,25 @@ Schema uses **plain PostgreSQL SQL only** (no PL/pgSQL triggers). The homepage s
 
 Step-by-step: **[docs/deployment.md](./docs/deployment.md)** — Neon (DB) + Render (API) + Cloudflare Pages (frontend).
 
+### Live API (Render)
+
+| Item | Value |
+|------|--------|
+| API URL | https://ferilo.onrender.com |
+| Health check | https://ferilo.onrender.com/api/v1/health |
+| Admin email | `admin@ferilo.local` |
+| Admin password | `testing01` |
+
+Set on Render (if not already):
+
+- `PUBLIC_API_URL=https://ferilo.onrender.com`
+- `ADMIN_EMAIL=admin@ferilo.local`
+- `ADMIN_PASSWORD=testing01`
+
+`ADMIN_PASSWORD` is applied when you run `npm run db:setup` / `db:seed` against Neon. If login fails with `testing01`, re-run seed with the Neon `DATABASE_URL` so the admin hash updates.
+
+Free Render sleeps when idle — first request can take 30–60s.
+
 ## Quick start
 
 ```bash

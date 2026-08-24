@@ -67,11 +67,11 @@ NODE_ENV=production
 PORT=10000
 DATABASE_URL=<paste Neon connection string>
 CLIENT_URL=https://YOUR-PROJECT.pages.dev
-PUBLIC_API_URL=https://YOUR-SERVICE.onrender.com
+PUBLIC_API_URL=https://ferilo.onrender.com
 JWT_SECRET=<long random string>
 JWT_REFRESH_SECRET=<another long random string>
 ADMIN_EMAIL=admin@ferilo.local
-ADMIN_PASSWORD=<strong password>
+ADMIN_PASSWORD=testing01
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=300
 AUTH_RATE_LIMIT_MAX=40
@@ -85,7 +85,7 @@ Generate secrets (PowerShell):
 
 4. Deploy. Health check URL:
 
-`https://YOUR-SERVICE.onrender.com/api/v1/health`
+`https://ferilo.onrender.com/api/v1/health`
 
 Expected: `{"success":true,"data":{"status":"ok",...,"database":"connected"}}`
 

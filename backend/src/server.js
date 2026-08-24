@@ -44,6 +44,20 @@ app.use(
   }),
 );
 
+// Root is API-only (website is on Cloudflare Pages)
+app.get('/', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      service: 'ferilo-api',
+      message: 'FERILO API is running. The website is hosted separately (Cloudflare Pages).',
+      health: '/api/v1/health',
+      apiBase: '/api/v1',
+      website: env.clientUrl,
+    },
+  });
+});
+
 // Legacy redirect
 app.get('/api/health', (_req, res) => res.redirect(308, '/api/v1/health'));
 
