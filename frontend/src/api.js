@@ -262,3 +262,48 @@ export async function markConversationRead(conversationId) {
   const { data } = await api.patch(`/conversations/${conversationId}/read`);
   return data.data;
 }
+
+export async function fetchOrderQuote(productId, toCity) {
+  const { data } = await api.get('/orders/quote', { params: { productId, toCity } });
+  return data.data;
+}
+
+export async function fetchMyOrders() {
+  const { data } = await api.get('/orders/mine');
+  return data.data;
+}
+
+export async function fetchSalesOrders() {
+  const { data } = await api.get('/orders/sales');
+  return data.data;
+}
+
+export async function fetchOrder(id) {
+  const { data } = await api.get(`/orders/${id}`);
+  return data.data;
+}
+
+export async function createOrder(payload) {
+  const { data } = await api.post('/orders', payload);
+  return data.data;
+}
+
+export async function confirmOrder(id) {
+  const { data } = await api.patch(`/orders/${id}/confirm`);
+  return data.data;
+}
+
+export async function updateOrderStatus(id, payload) {
+  const { data } = await api.patch(`/orders/${id}/status`, payload);
+  return data.data;
+}
+
+export async function completeOrder(id) {
+  const { data } = await api.patch(`/orders/${id}/complete`);
+  return data.data;
+}
+
+export async function cancelOrder(id, reason) {
+  const { data } = await api.patch(`/orders/${id}/cancel`, { reason });
+  return data.data;
+}

@@ -42,6 +42,15 @@ import {
   fetchConversation,
   sendMessage,
   markConversationRead,
+  fetchOrderQuote,
+  fetchMyOrders,
+  fetchSalesOrders,
+  fetchOrder,
+  createOrder,
+  confirmOrder,
+  updateOrderStatus,
+  completeOrder,
+  cancelOrder,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -196,6 +205,18 @@ const OFFER_STATUS_LABELS = {
   CANCELLED: 'Cancelled',
 };
 
+const ORDER_STATUS_LABELS = {
+  PENDING: 'Pending confirmation',
+  CONFIRMED: 'Confirmed',
+  READY_FOR_MEETUP: 'Ready for meetup',
+  READY_FOR_DELIVERY: 'Ready for delivery',
+  IN_TRANSIT: 'In transit',
+  DELIVERED: 'Delivered',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  DISPUTED: 'Disputed',
+};
+
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'oldest', label: 'Oldest first' },
@@ -341,6 +362,7 @@ function Header() {
           {user && <Link to="/app/favorites" className="header__nav-link">Favorites</Link>}
           {user && <Link to="/app/offers" className="header__nav-link">Offers</Link>}
           {user && <Link to="/app/messages" className="header__nav-link">Messages</Link>}
+          {user && <Link to="/app/orders" className="header__nav-link">Orders</Link>}
           <Link to="/help" className="header__nav-link">Help</Link>
         </nav>
         <div className="header__actions">
@@ -586,6 +608,10 @@ function DashboardPage() {
           <Link to="/app/messages" className="trust__card dashboard__link">
             <h2>Messages</h2>
             <p>Chat with buyers and sellers.</p>
+          </Link>
+          <Link to="/app/orders" className="trust__card dashboard__link">
+            <h2>Orders</h2>
+            <p>Track purchases and sales.</p>
           </Link>
           <Link to="/app/listings/new" className="trust__card dashboard__link">
             <h2>Post an Ad</h2>
@@ -1233,6 +1259,15 @@ function OfferCard({ offer, role, onUpdate }) {
           </p>
           {offer.message && <p className="offer-card__message">&ldquo;{offer.message}&rdquo;</p>}
           <p className="offer-card__date">{new Date(offer.createdAt).toLocaleString()}</p>
+          {role === 'buyer' && offer.status === 'ACCEPTED' && (
+            <button
+              type="button"
+              className="header__btn header__btn--primary offer-card__message-btn"
+              onClick={() => navigate(`/products/${offer.productId}?offerId=${offer.id}`)}
+            >
+              Place order
+            </button>
+          )}
           {role === 'seller' && (
             <button type="button" className="header__btn header__btn--ghost offer-card__message-btn" onClick={handleMessageBuyer}>
               Message buyer
@@ -1520,8 +1555,315 @@ function ConversationPage() {
   );
 }
 
+function PlaceOrderPanel({ product, offerId }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [fulfillmentType, setFulfillmentType] = useState(product.meetupAvailable ? 'MEETUP' : 'DELIVERY');
+  const [meetupNote, setMeetupNote] = useState('');
+  const [address, setAddress] = useState({
+    street: '', city: user?.city || 'Kathmandu', district: user?.district || 'Kathmandu', phone: user?.phone || '',
+  });
+  const [quote, setQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState('');
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (fulfillmentType !== 'DELIVERY' || !address.city.trim()) {
+      setQuote(null);
+      setQuoteError('');
+      setQuoteLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setQuoteLoading(true);
+    setQuoteError('');
+    fetchOrderQuote(product.id, address.city.trim())
+      .then((q) => {
+        if (!cancelled) {
+          setQuote(q);
+          setQuoteError('');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setQuote(null);
+          setQuoteError(err.response?.data?.error?.message || 'Could not calculate delivery for this address.');
+        }
+      })
+      .finally(() => { if (!cancelled) setQuoteLoading(false); });
+    return () => { cancelled = true; };
+  }, [fulfillmentType, address.city, product.id]);
+
+  if (!user) {
+    return (
+      <div className="offer-panel">
+        <h2>Place order</h2>
+        <p className="auth-subtitle"><Link to="/login">Log in</Link> to buy this item.</p>
+      </div>
+    );
+  }
+
+  if (user.id === product.seller?.id) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSubmitting(true);
+    try {
+      const order = await createOrder({
+        productId: product.id,
+        fulfillmentType,
+        offerId: offerId || undefined,
+        meetupLocationNote: fulfillmentType === 'MEETUP' ? meetupNote : undefined,
+        deliveryAddress: fulfillmentType === 'DELIVERY' ? address : undefined,
+      });
+      navigate(`/app/orders/${order.id}`);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to place order.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const productPrice = Number(product.price);
+  const deliveryTotal = quote ? Number(quote.totalDelivery) : 0;
+  const total = productPrice + deliveryTotal;
+  const deliveryBlocked = fulfillmentType === 'DELIVERY' && (!quote || !!quoteError || quoteLoading);
+
+  return (
+    <div className="offer-panel">
+      <h2>Place order</h2>
+      {offerId && <p className="auth-subtitle">Using your accepted offer price.</p>}
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <fieldset className="order-fulfillment">
+          <legend>Fulfillment</legend>
+          {product.meetupAvailable && (
+            <label className="checkbox-label">
+              <input type="radio" name="fulfillment" value="MEETUP" checked={fulfillmentType === 'MEETUP'} onChange={() => setFulfillmentType('MEETUP')} />
+              Meetup (free)
+            </label>
+          )}
+          {product.deliveryEligible && (
+            <label className="checkbox-label">
+              <input type="radio" name="fulfillment" value="DELIVERY" checked={fulfillmentType === 'DELIVERY'} onChange={() => setFulfillmentType('DELIVERY')} />
+              Delivery
+            </label>
+          )}
+        </fieldset>
+        {fulfillmentType === 'MEETUP' && (
+          <label>
+            Meetup preference (optional)
+            <input value={meetupNote} onChange={(e) => setMeetupNote(e.target.value)} placeholder="Preferred area or time…" />
+          </label>
+        )}
+        {fulfillmentType === 'DELIVERY' && (
+          <>
+            <label>Street address<input name="street" value={address.street} onChange={(e) => setAddress({ ...address, street: e.target.value })} required minLength={3} /></label>
+            <label>City<input name="city" value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} required /></label>
+            <label>District<input name="district" value={address.district} onChange={(e) => setAddress({ ...address, district: e.target.value })} required /></label>
+            <label>Phone<input name="phone" value={address.phone} onChange={(e) => setAddress({ ...address, phone: e.target.value })} required /></label>
+            {quoteLoading && <p className="auth-subtitle">Calculating delivery…</p>}
+            {quote && (
+              <p className="auth-subtitle">
+                Delivery: {formatPrice(quote.deliveryCharge)}
+                {quote.trolleyCharge > 0 && ` + trolley ${formatPrice(quote.trolleyCharge)}`}
+                {' '}({quote.distanceKm} km)
+              </p>
+            )}
+            {quoteError && <p className="auth-error form-feedback">{quoteError}</p>}
+          </>
+        )}
+        <p className="order-total">
+          Estimated total:{' '}
+          <strong>
+            {fulfillmentType === 'MEETUP'
+              ? (offerId ? 'Based on accepted offer' : formatPrice(productPrice))
+              : quote
+                ? formatPrice(total)
+                : (offerId ? 'Accepted offer + delivery (pending quote)' : `${formatPrice(productPrice)} + delivery`)}
+          </strong>
+        </p>
+        {error && <p className="auth-error form-feedback">{error}</p>}
+        {success && <p className="auth-success form-feedback">{success}</p>}
+        <button type="submit" className="auth-submit" disabled={submitting || deliveryBlocked}>
+          {submitting ? 'Placing order…' : 'Place order'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function OrderCard({ order }) {
+  return (
+    <li className="order-card">
+      <Link to={`/app/orders/${order.id}`} className="order-card__link">
+        <div>
+          <strong>{order.productTitle}</strong>
+          <p className="order-card__meta">{order.orderNumber} · {order.fulfillmentType === 'MEETUP' ? 'Meetup' : 'Delivery'}</p>
+          <p className="order-card__date">{new Date(order.createdAt).toLocaleString()}</p>
+        </div>
+        <div className="order-card__side">
+          <p className="order-card__amount">{formatPrice(order.totalAmount)}</p>
+          <span className={`badge badge--order badge--order-${order.status.toLowerCase()}`}>
+            {ORDER_STATUS_LABELS[order.status] || order.status}
+          </span>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
+function OrdersPage() {
+  const [tab, setTab] = useState('purchases');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    const fetcher = tab === 'purchases' ? fetchMyOrders : fetchSalesOrders;
+    fetcher()
+      .then(setOrders)
+      .catch(() => setError('Failed to load orders.'))
+      .finally(() => setLoading(false));
+  }, [tab]);
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <h1>Orders</h1>
+        <p className="dashboard__meta">Track your purchases and sales.</p>
+        <div className="offers-tabs">
+          <button type="button" className={tab === 'purchases' ? 'offers-tabs__btn offers-tabs__btn--active' : 'offers-tabs__btn'} onClick={() => setTab('purchases')}>My purchases</button>
+          <button type="button" className={tab === 'sales' ? 'offers-tabs__btn offers-tabs__btn--active' : 'offers-tabs__btn'} onClick={() => setTab('sales')}>My sales</button>
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : orders.length === 0 ? (
+          <p className="auth-subtitle">No orders yet.</p>
+        ) : (
+          <ul className="order-list">{orders.map((o) => <OrderCard key={o.id} order={o} />)}</ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OrderDetailPage() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetchOrder(id)
+      .then(setData)
+      .catch((err) => setError(err.response?.data?.error?.message || 'Order not found.'));
+  }, [id]);
+
+  const reload = () => {
+    fetchOrder(id)
+      .then(setData)
+      .catch((err) => setError(err.response?.data?.error?.message || 'Order not found.'));
+  };
+
+  const run = async (action) => {
+    setBusy(true);
+    try {
+      await action();
+      reload();
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Action failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error) return <div className="container auth-loading">{error}</div>;
+  if (!data) return <div className="container auth-loading">Loading…</div>;
+
+  const { order, history } = data;
+  const isBuyer = user?.id === order.buyerId;
+  const isSeller = user?.id === order.sellerId;
+
+  const nextSellerStatus = order.status === 'CONFIRMED'
+    ? (order.fulfillmentType === 'MEETUP' ? 'READY_FOR_MEETUP' : 'READY_FOR_DELIVERY')
+    : order.status === 'READY_FOR_DELIVERY' ? 'IN_TRANSIT'
+      : order.status === 'IN_TRANSIT' ? 'DELIVERED' : null;
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <button type="button" className="header__btn header__btn--ghost" onClick={() => navigate('/app/orders')}>← Back to orders</button>
+        <h1>{order.productTitle}</h1>
+        <p className="dashboard__meta">{order.orderNumber} · {ORDER_STATUS_LABELS[order.status]}</p>
+        <div className="order-detail">
+          <dl className="product-detail__facts">
+            <div><dt>Item price</dt><dd>{formatPrice(order.productPrice)}</dd></div>
+            {order.deliveryCharge > 0 && <div><dt>Delivery</dt><dd>{formatPrice(order.deliveryCharge)}</dd></div>}
+            {order.trolleyCharge > 0 && <div><dt>Trolley</dt><dd>{formatPrice(order.trolleyCharge)}</dd></div>}
+            <div><dt>Total</dt><dd><strong>{formatPrice(order.totalAmount)}</strong></dd></div>
+            <div><dt>Fulfillment</dt><dd>{order.fulfillmentType === 'MEETUP' ? 'Meetup' : 'Delivery'}</dd></div>
+            <div><dt>Buyer</dt><dd>{order.buyerName}</dd></div>
+            <div><dt>Seller</dt><dd>{order.sellerName}</dd></div>
+            {order.meetupLocationNote && <div><dt>Meetup note</dt><dd>{order.meetupLocationNote}</dd></div>}
+            {order.deliveryAddress && (
+              <div><dt>Delivery to</dt><dd>{order.deliveryAddress.street}, {order.deliveryAddress.city}</dd></div>
+            )}
+          </dl>
+          <div className="order-actions">
+            {isSeller && order.status === 'PENDING' && (
+              <button type="button" className="header__btn header__btn--primary" disabled={busy} onClick={() => run(() => confirmOrder(order.id))}>Confirm order</button>
+            )}
+            {isSeller && nextSellerStatus && (
+              <button type="button" className="header__btn header__btn--primary" disabled={busy} onClick={() => run(() => updateOrderStatus(order.id, { status: nextSellerStatus }))}>
+                Mark as {ORDER_STATUS_LABELS[nextSellerStatus]}
+              </button>
+            )}
+            {((isBuyer && order.status === 'DELIVERED') || (order.fulfillmentType === 'MEETUP' && order.status === 'READY_FOR_MEETUP')) && (
+              <button type="button" className="header__btn header__btn--primary" disabled={busy} onClick={() => run(() => completeOrder(order.id))}>Mark completed</button>
+            )}
+            {['PENDING', 'CONFIRMED'].includes(order.status) && (
+              <button type="button" className="header__btn header__btn--ghost" disabled={busy} onClick={() => {
+                const reason = window.prompt('Cancellation reason (min 3 characters):');
+                if (!reason || reason.length < 3) return;
+                run(() => cancelOrder(order.id, reason));
+              }}>Cancel order</button>
+            )}
+            <Link to={`/products/${order.productId}`} className="header__btn header__btn--ghost">View listing</Link>
+          </div>
+          {history?.length > 0 && (
+            <div className="order-history">
+              <h2>Status history</h2>
+              <ul>
+                {history.map((h, i) => (
+                  <li key={i}>
+                    <strong>{ORDER_STATUS_LABELS[h.toStatus] || h.toStatus}</strong>
+                    {h.note && ` — ${h.note}`}
+                    <span className="order-card__date"> · {new Date(h.createdAt).toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductDetailPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const offerId = searchParams.get('offerId');
   const [product, setProduct] = useState(null);
   const [error, setError] = useState('');
 
@@ -1566,6 +1908,7 @@ function ProductDetailPage() {
           <p className="auth-subtitle">Seller: {product.seller?.displayName || 'Unknown'}</p>
           <ContactSellerButton product={product} />
           <MakeOfferPanel product={product} />
+          <PlaceOrderPanel product={product} offerId={offerId} />
         </div>
       </div>
     </div>
@@ -1946,6 +2289,8 @@ export default function App() {
             <Route path="/app/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
             <Route path="/app/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
             <Route path="/app/messages/:id" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
+            <Route path="/app/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
+            <Route path="/app/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
             <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
             <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
             <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />

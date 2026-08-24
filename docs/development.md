@@ -39,6 +39,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 11 complete** — Messaging: buyer-seller conversations per listing, chat thread, contact seller.
+**Phase 12 complete** — Orders: meetup/delivery checkout, delivery quotes, seller confirmation, status tracking.
 
-**Next: Phase 12** — Orders.
+**Next: Phase 13** — Reviews.

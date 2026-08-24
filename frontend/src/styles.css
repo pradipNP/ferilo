@@ -180,6 +180,28 @@ button { cursor: pointer; }
 .chat-compose { display: flex; flex-direction: column; gap: var(--space-sm); }
 .chat-compose textarea { padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); resize: vertical; font-size: 1rem; }
 .offer-card__message-btn { margin-top: var(--space-sm); }
+.order-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-md); }
+.order-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.order-card__link { display: flex; justify-content: space-between; gap: var(--space-md); padding: var(--space-lg); color: inherit; flex-wrap: wrap; }
+.order-card__link:hover { border-color: var(--color-accent); }
+.order-card__meta, .order-card__date { margin: var(--space-xs) 0 0; font-size: 0.875rem; color: var(--color-text-muted); }
+.order-card__side { text-align: right; }
+.order-card__amount { margin: 0 0 var(--space-sm); font-weight: 700; color: var(--color-accent); }
+.order-detail { margin-top: var(--space-lg); }
+.order-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin: var(--space-lg) 0; }
+.order-history { margin-top: var(--space-xl); padding-top: var(--space-lg); border-top: 1px solid var(--color-border); }
+.order-history ul { margin: 0; padding-left: 1.25rem; color: var(--color-text-muted); font-size: 0.9375rem; }
+.order-history li { margin-bottom: var(--space-sm); }
+.order-fulfillment { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+.order-fulfillment legend { font-weight: 600; margin-bottom: var(--space-sm); }
+.order-total { margin: var(--space-md) 0 0; font-size: 1rem; }
+.badge--order { text-transform: capitalize; }
+.badge--order-pending { background: #fef3c7; color: #92400e; }
+.badge--order-confirmed, .badge--order-ready_for_meetup, .badge--order-ready_for_delivery { background: #dbeafe; color: #1d4ed8; }
+.badge--order-in_transit { background: #e0e7ff; color: #4338ca; }
+.badge--order-delivered { background: #dcfce7; color: #166534; }
+.badge--order-completed { background: #dcfce7; color: #166534; }
+.badge--order-cancelled { background: #f1f5f9; color: #475569; }
 .listing-images { margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--color-border); }
 .listing-images__grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-md); }
 .listing-images__item { position: relative; width: 80px; height: 80px; }
