@@ -1,8 +1,8 @@
 /**
  * Demo product seed — 15+ ACTIVE listings per category for search/filter testing.
+ * Products are owned by the FERILO admin account so you can edit them while logged in.
  * Run: npm run db:seed-products -w backend
  */
-import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +11,8 @@ import { pool } from './db.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const SEED_EMAIL = process.env.SEED_SELLER_EMAIL ?? 'seed@ferilo.local';
-const SEED_PASSWORD = process.env.SEED_SELLER_PASSWORD ?? 'SeedSeller@123';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@ferilo.local';
+const LEGACY_SEED_EMAIL = process.env.SEED_SELLER_EMAIL ?? 'seed@ferilo.local';
 const PER_CATEGORY = Math.max(15, parseInt(process.env.SEED_PRODUCTS_PER_CATEGORY || '15', 10));
 
 const CITIES = [
@@ -290,24 +290,42 @@ function buildDescription(title, categoryName, city) {
   );
 }
 
-async function ensureSeedSeller(client) {
-  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 12);
+async function ensureAdminSeller(client) {
   const { rows } = await client.query(
-    `INSERT INTO users (email, password_hash, role, verification_status, account_status, email_verified_at)
-     VALUES ($1, $2, 'USER', 'VERIFIED', 'ACTIVE', NOW())
-     ON CONFLICT (email) DO UPDATE SET verification_status = 'VERIFIED', account_status = 'ACTIVE'
-     RETURNING id`,
-    [SEED_EMAIL, passwordHash],
+    `SELECT id FROM users WHERE email = $1 AND role = 'ADMIN'`,
+    [ADMIN_EMAIL],
   );
+  if (!rows.length) {
+    throw new Error(
+      `Admin user ${ADMIN_EMAIL} not found. Run npm run db:seed first, then retry.`,
+    );
+  }
 
   await client.query(
     `INSERT INTO user_profiles (user_id, display_name, city, district)
-     VALUES ($1, 'Demo Seller', 'Kathmandu', 'Kathmandu')
-     ON CONFLICT (user_id) DO UPDATE SET display_name = 'Demo Seller'`,
+     VALUES ($1, 'FERILO Admin', 'Kathmandu', 'Kathmandu')
+     ON CONFLICT (user_id) DO UPDATE SET display_name = 'FERILO Admin'`,
     [rows[0].id],
   );
 
   return rows[0].id;
+}
+
+async function clearPreviousSeedListings(client, adminId) {
+  // Remove prior demo inventory owned by admin (seeded descriptions only).
+  await client.query(
+    `DELETE FROM products
+     WHERE seller_id = $1
+       AND description LIKE 'Well-maintained % listed on FERILO in the %'`,
+    [adminId],
+  );
+
+  // Also clear leftover Demo Seller inventory from older seeds.
+  await client.query(
+    `DELETE FROM products
+     WHERE seller_id IN (SELECT id FROM users WHERE email = $1)`,
+    [LEGACY_SEED_EMAIL],
+  );
 }
 
 async function seedProducts() {
@@ -315,12 +333,8 @@ async function seedProducts() {
   try {
     await client.query('BEGIN');
 
-    const sellerId = await ensureSeedSeller(client);
-
-    await client.query(
-      `DELETE FROM products WHERE seller_id = $1`,
-      [sellerId],
-    );
+    const sellerId = await ensureAdminSeller(client);
+    await clearPreviousSeedListings(client, sellerId);
 
     const { rows: categories } = await client.query(
       `SELECT id, name, slug FROM categories WHERE is_active = true ORDER BY sort_order`,
@@ -377,7 +391,7 @@ async function seedProducts() {
 
     await client.query('COMMIT');
     console.log(`Seeded ${totalInserted} ACTIVE products (${PER_CATEGORY} per category, ${categories.length} categories).`);
-    console.log(`Demo seller: ${SEED_EMAIL} / ${SEED_PASSWORD}`);
+    console.log(`Seller: ${ADMIN_EMAIL} (FERILO Admin) — log in as admin to manage these listings.`);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
