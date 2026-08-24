@@ -99,6 +99,24 @@ export function createApiRouter() {
   );
 
   router.get(
+    '/areas',
+    asyncHandler(async (_req, res) => {
+      const { rows } = await pool.query(
+        `SELECT city, district, COUNT(*)::int AS listing_count
+         FROM products
+         WHERE status = 'ACTIVE'
+         GROUP BY city, district
+         ORDER BY listing_count DESC, city ASC`,
+      );
+      sendSuccess(res, rows.map((r) => ({
+        city: r.city,
+        district: r.district,
+        listingCount: r.listing_count,
+      })));
+    }),
+  );
+
+  router.get(
     '/categories/:slug',
     validate(
       z.object({

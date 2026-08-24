@@ -50,6 +50,7 @@ function isDev() {
 const SKIP_PATHS = new Set([
   '/health',
   '/categories',
+  '/areas',
   '/notifications/unread-count',
 ]);
 

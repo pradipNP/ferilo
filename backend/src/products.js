@@ -147,7 +147,7 @@ function requireVerified(AppError) {
   };
 }
 
-const PRODUCT_SORT_OPTIONS = new Set(['newest', 'oldest', 'price_asc', 'price_desc']);
+const PRODUCT_SORT_OPTIONS = new Set(['newest', 'oldest', 'price_asc', 'price_desc', 'popular']);
 const PRODUCT_CONDITIONS = new Set(['NEW_LIKE', 'GOOD', 'FAIR', 'POOR']);
 
 function parseProductListQuery(query) {
@@ -222,6 +222,7 @@ function buildProductListQuery(params) {
     oldest: 'p.published_at ASC NULLS LAST, p.created_at ASC',
     price_asc: 'p.price ASC, p.published_at DESC NULLS LAST',
     price_desc: 'p.price DESC, p.published_at DESC NULLS LAST',
+    popular: 'p.view_count DESC, p.published_at DESC NULLS LAST',
   }[params.sort];
 
   return { where: conditions.join(' AND '), values, orderBy, nextIdx: idx };

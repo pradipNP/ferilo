@@ -308,6 +308,21 @@ async function fetchCategoriesPublic() {
   throw new Error('No categories returned');
 }
 
+async function fetchAreasPublic() {
+  const { data } = await axios.get('/api/v1/areas', { timeout: 8000 });
+  if (data?.success && Array.isArray(data.data)) return data.data;
+  throw new Error('No areas returned');
+}
+
+async function fetchFeaturedProductsPublic() {
+  const { data } = await axios.get('/api/v1/products', {
+    timeout: 8000,
+    params: { sort: 'popular', limit: 8 },
+  });
+  if (data?.success && Array.isArray(data.data)) return data.data;
+  throw new Error('No featured products returned');
+}
+
 const CONDITIONS = [
   { value: 'NEW_LIKE', label: 'Like New' },
   { value: 'GOOD', label: 'Good' },
@@ -348,6 +363,7 @@ const SORT_OPTIONS = [
   { value: 'oldest', label: 'Oldest first' },
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
+  { value: 'popular', label: 'Most popular' },
 ];
 
 function filtersFromSearchParams(searchParams, fixedCategoryId) {
@@ -561,7 +577,8 @@ function Header() {
       </div>
       <nav className="subnav" aria-label="Primary">
         <div className="container subnav__inner">
-          <SubNavLink to="/browse">Browse</SubNavLink>
+          <SubNavLink to="/" end>Dashboard</SubNavLink>
+          <SubNavLink to="/browse">All Items</SubNavLink>
           {user && <SubNavLink to="/app/favorites">Favorites</SubNavLink>}
           {user && <SubNavLink to="/app/offers">Offers</SubNavLink>}
           {user && <SubNavLink to="/app/messages">Messages</SubNavLink>}
@@ -637,15 +654,37 @@ function Footer() {
 }
 
 function HomePage() {
+  const { setArea } = useArea();
   const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
   const [dataSource, setDataSource] = useState('fallback');
+  const [areaStats, setAreaStats] = useState([]);
+  const [featured, setFeatured] = useState([]);
+
+  const areaCards = useMemo(() => {
+    const countMap = new Map(
+      areaStats.map((a) => [`${a.city}|${a.district}`, a.listingCount]),
+    );
+    return SERVICE_AREAS.filter((a) => a.city).map((a) => ({
+      ...a,
+      listingCount: countMap.get(`${a.city}|${a.district}`) || 0,
+    })).sort((a, b) => b.listingCount - a.listingCount || a.label.localeCompare(b.label));
+  }, [areaStats]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const live = await fetchCategoriesPublic();
-        if (!cancelled) { setCategories(live); setDataSource('live'); }
+        const [liveCategories, liveAreas, liveFeatured] = await Promise.all([
+          fetchCategoriesPublic(),
+          fetchAreasPublic().catch(() => []),
+          fetchFeaturedProductsPublic().catch(() => []),
+        ]);
+        if (!cancelled) {
+          setCategories(liveCategories);
+          setAreaStats(liveAreas);
+          setFeatured(liveFeatured);
+          setDataSource('live');
+        }
       } catch {
         if (!cancelled) setDataSource('fallback');
       }
@@ -684,6 +723,74 @@ function HomePage() {
           </ul>
         </div>
       </section>
+      <section className="areas">
+        <div className="container">
+          <div className="areas__head">
+            <h2>Browse by City</h2>
+            <Link to="/browse" className="areas__view-all" onClick={() => setArea({ city: '', district: '' })}>
+              View all cities →
+            </Link>
+          </div>
+          <ul className="areas__grid">
+            {areaCards.map((area) => {
+              const params = new URLSearchParams({ city: area.city, district: area.district });
+              return (
+                <li key={`${area.city}-${area.district}`}>
+                  <Link
+                    to={`/browse?${params.toString()}`}
+                    className="areas__card"
+                    onClick={() => setArea(area)}
+                  >
+                    <span className="areas__city">{area.label}</span>
+                    <span className="areas__count">
+                      {area.listingCount} listing{area.listingCount === 1 ? '' : 's'}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </section>
+      {featured.length > 0 && (
+        <section className="featured">
+          <div className="container">
+            <div className="areas__head">
+              <h2>Featured Listings</h2>
+              <Link to="/browse?sort=popular" className="areas__view-all">View all →</Link>
+            </div>
+            <ul className="featured__grid">
+              {featured.map((p) => (
+                <li key={p.id}>
+                  <Link to={`/products/${p.id}`} className="featured__card">
+                    <div className="featured__img">
+                      {p.images?.[0]?.url ? (
+                        <img src={p.images[0].url} alt="" loading="lazy" />
+                      ) : (
+                        <span className="product-card__placeholder">No image</span>
+                      )}
+                      <span className="featured__badge">Featured</span>
+                    </div>
+                    <div className="featured__body">
+                      <h3>{p.title}</h3>
+                      <p className="featured__price">{formatPrice(p.price)}</p>
+                      <p className="featured__meta">
+                        {p.city}
+                        {Number(p.seller?.sellerRatingAvg) > 0 && (
+                          <> · ★ {Number(p.seller.sellerRatingAvg).toFixed(1)}</>
+                        )}
+                      </p>
+                      {p.deliveryEligible && (
+                        <p className="featured__delivery">🚚 Delivery available</p>
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
