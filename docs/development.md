@@ -19,6 +19,7 @@ npm run dev
 | `npm run lint` | Lint both workspaces |
 | `npm run db:migrate` | Apply database/schema.sql |
 | `npm run db:seed` | Seed categories, delivery rates, admin user |
+| `npm run db:seed-products` | Seed ~210 demo ACTIVE listings (15 per category) |
 | `npm run db:setup` | Migrate + seed |
 
 ## Git workflow

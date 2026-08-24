@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "lint": "eslint src",
     "db:migrate": "node src/db.js migrate",
-    "db:seed": "node src/db.js seed"
+    "db:seed": "node src/db.js seed",
+    "db:seed-products": "node src/seed-products.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
