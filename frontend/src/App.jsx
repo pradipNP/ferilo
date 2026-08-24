@@ -8,6 +8,12 @@ import {
   logoutRequest,
   refreshAccessToken,
   clearAccessToken,
+  updateProfile,
+  fetchVerificationStatus,
+  submitVerification,
+  fetchAdminVerifications,
+  approveVerification,
+  rejectVerification,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -74,8 +80,14 @@ function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const me = await fetchMe();
+    setUser(me);
+    return me;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -317,21 +329,224 @@ function DashboardPage() {
       <div className="container">
         <h1>Hello, {user.displayName || user.email}</h1>
         <p className="dashboard__meta">
-          Role: <strong>{user.role}</strong> · Verification: <strong>{user.verificationStatus}</strong>
+          Role: <strong>{user.role}</strong> · Verification:{' '}
+          <span className={`badge badge--${user.verificationStatus?.toLowerCase()}`}>
+            {user.verificationStatus}
+          </span>
         </p>
         <div className="dashboard__cards">
-          <article className="trust__card">
-            <h2>My Listings</h2>
-            <p>Coming in Phase 7</p>
-          </article>
-          <article className="trust__card">
+          <Link to="/app/profile" className="trust__card dashboard__link">
+            <h2>Edit Profile</h2>
+            <p>Update your name, city, and bio.</p>
+          </Link>
+          <Link to="/app/verification" className="trust__card dashboard__link">
             <h2>Verify Identity</h2>
-            <p>Coming in Phase 6</p>
-          </article>
+            <p>Required to publish listings.</p>
+          </Link>
+          {user.role === 'ADMIN' && (
+            <Link to="/admin/verifications" className="trust__card dashboard__link">
+              <h2>Admin: Verifications</h2>
+              <p>Review pending identity requests.</p>
+            </Link>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function ProfilePage() {
+  const { user, refreshUser } = useAuth();
+  const [form, setForm] = useState({
+    displayName: user.displayName || '',
+    phone: user.phone || '',
+    city: user.city || '',
+    district: user.district || '',
+    bio: user.bio || '',
+  });
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await updateProfile(form);
+      await refreshUser();
+      setMessage('Profile updated successfully.');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>My Profile</h1>
+        {message && <p className="auth-success">{message}</p>}
+        {error && <p className="auth-error">{error}</p>}
+        <form className="auth-form profile-form" onSubmit={handleSubmit}>
+          <label>Display name<input name="displayName" value={form.displayName} onChange={handleChange} required /></label>
+          <label>Phone<input name="phone" value={form.phone} onChange={handleChange} placeholder="+977 9800000000" /></label>
+          <label>City<input name="city" value={form.city} onChange={handleChange} placeholder="Kathmandu" /></label>
+          <label>District<input name="district" value={form.district} onChange={handleChange} placeholder="Kathmandu" /></label>
+          <label>Bio<textarea name="bio" value={form.bio} onChange={handleChange} rows={4} maxLength={500} /></label>
+          <button type="submit" className="auth-submit" disabled={saving}>{saving ? 'Saving…' : 'Save profile'}</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function VerificationPage() {
+  const { user, refreshUser } = useAuth();
+  const [status, setStatus] = useState(null);
+  const [documentType, setDocumentType] = useState('CITIZENSHIP');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchVerificationStatus().then(setStatus).catch(() => {});
+  }, []);
+
+  const canSubmit = !status?.latest || ['REJECTED', 'RESUBMISSION_REQUIRED'].includes(status?.latest?.status)
+    || (user.verificationStatus === 'UNVERIFIED' && !status?.latest);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    setMessage('');
+    const formData = new FormData(e.target);
+    formData.set('documentType', documentType);
+    try {
+      const result = await submitVerification(formData);
+      setStatus(result);
+      await refreshUser();
+      setMessage('Verification submitted. An admin will review your documents.');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Submission failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>Identity Verification</h1>
+        <p className="auth-subtitle">
+          Upload demo/test documents for portfolio review. Documents are stored privately and never shown to other users.
+        </p>
+        <p className="dashboard__meta">
+          Status:{' '}
+          <span className={`badge badge--${user.verificationStatus?.toLowerCase()}`}>
+            {user.verificationStatus}
+          </span>
+        </p>
+        {status?.latest?.rejectionReason && (
+          <p className="auth-error">Previous rejection: {status.latest.rejectionReason}</p>
+        )}
+        {message && <p className="auth-success">{message}</p>}
+        {error && <p className="auth-error">{error}</p>}
+        {user.verificationStatus === 'VERIFIED' ? (
+          <p className="auth-success">Your identity is verified. You can publish listings (Phase 7).</p>
+        ) : canSubmit ? (
+          <form className="auth-form profile-form" onSubmit={handleSubmit}>
+            <label>
+              Document type
+              <select value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
+                <option value="CITIZENSHIP">Citizenship (demo)</option>
+                <option value="PASSPORT">Passport (demo)</option>
+                <option value="DRIVING_LICENSE">Driving license (demo)</option>
+              </select>
+            </label>
+            <label>Front side (required)<input type="file" name="front" accept="image/jpeg,image/png,application/pdf" required /></label>
+            <label>Back side (optional)<input type="file" name="back" accept="image/jpeg,image/png,application/pdf" /></label>
+            <label>Selfie (optional)<input type="file" name="selfie" accept="image/jpeg,image/png" /></label>
+            <button type="submit" className="auth-submit" disabled={submitting}>
+              {submitting ? 'Uploading…' : 'Submit for verification'}
+            </button>
+          </form>
+        ) : (
+          <p className="auth-subtitle">Your verification is under review. Please check back later.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminVerificationsPage() {
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    fetchAdminVerifications()
+      .then(setQueue)
+      .catch(() => setError('Failed to load verification queue.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleApprove = async (id) => {
+    await approveVerification(id);
+    load();
+  };
+
+  const handleReject = async (id) => {
+    const reason = window.prompt('Rejection reason (min 5 characters):');
+    if (!reason || reason.length < 5) return;
+    await rejectVerification(id, reason);
+    load();
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <h1>Verification Queue</h1>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : queue.length === 0 ? (
+          <p className="auth-subtitle">No pending verifications.</p>
+        ) : (
+          <ul className="admin-list">
+            {queue.map((item) => (
+              <li key={item.id} className="admin-list__item">
+                <div>
+                  <strong>{item.display_name || item.email}</strong>
+                  <p>{item.document_type} · {item.document_count} file(s) · {new Date(item.submitted_at).toLocaleString()}</p>
+                </div>
+                <div className="admin-list__actions">
+                  <button type="button" className="header__btn header__btn--primary" onClick={() => handleApprove(item.id)}>Approve</button>
+                  <button type="button" className="header__btn header__btn--ghost" onClick={() => handleReject(item.id)}>Reject</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="container auth-loading">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'ADMIN') return <Navigate to="/app/dashboard" replace />;
+  return children;
 }
 
 function ProtectedRoute({ children }) {
@@ -367,6 +582,9 @@ export default function App() {
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
           <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
+          <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
         </Route>
       </Routes>
     </AuthProvider>

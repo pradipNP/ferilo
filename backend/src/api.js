@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { pool, testConnection } from './db.js';
 import { attachAuthRoutes } from './auth.js';
+import { attachProfileRoutes, multerErrorHandler } from './profile.js';
 
 // ─── Errors & response helpers ─────────────────────────────
 export class AppError extends Error {
@@ -102,9 +103,12 @@ export function createApiRouter() {
   );
 
   attachAuthRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
+  attachProfileRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
 
   return router;
 }
+
+export { multerErrorHandler };
 
 // ─── Global middleware ───────────────────────────────────────
 export function notFoundHandler(_req, res) {

@@ -7,7 +7,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';
-import { createApiRouter, notFoundHandler, errorHandler } from './api.js';
+import { createApiRouter, notFoundHandler, errorHandler, multerErrorHandler } from './api.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -43,6 +43,7 @@ app.use(
 app.get('/api/health', (_req, res) => res.redirect(308, '/api/v1/health'));
 
 app.use('/api/v1', createApiRouter());
+app.use(multerErrorHandler);
 app.use(notFoundHandler);
 app.use((err, req, res, next) => errorHandler(err, req, res, next, { logger, isProduction: env.isProduction }));
 

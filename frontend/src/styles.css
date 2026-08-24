@@ -73,6 +73,20 @@ button { cursor: pointer; }
 .dashboard h1 { margin: 0 0 var(--space-sm); color: var(--color-primary); }
 .dashboard__meta { margin: 0 0 var(--space-xl); color: var(--color-text-muted); }
 .dashboard__cards { display: grid; gap: var(--space-lg); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.dashboard__link { display: block; color: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
+.dashboard__link:hover { border-color: var(--color-accent); box-shadow: var(--shadow-sm); }
+.container.narrow { max-width: 560px; }
+.profile-form textarea, .profile-form select { padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 1rem; }
+.auth-success { margin: 0 0 var(--space-md); padding: var(--space-sm) var(--space-md); background: #dcfce7; color: #166534; border-radius: var(--radius-sm); font-size: 0.875rem; }
+.badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+.badge--verified { background: #dcfce7; color: #166534; }
+.badge--pending { background: #fef3c7; color: #92400e; }
+.badge--unverified { background: #f1f5f9; color: #475569; }
+.badge--rejected { background: #fef2f2; color: #b91c1c; }
+.admin-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-md); }
+.admin-list__item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-md); padding: var(--space-lg); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.admin-list__item p { margin: var(--space-xs) 0 0; color: var(--color-text-muted); font-size: 0.875rem; }
+.admin-list__actions { display: flex; gap: var(--space-sm); }
 
 .footer { background: var(--color-footer-bg); color: var(--color-footer-text); margin-top: auto; }
 .footer__grid { display: grid; gap: var(--space-2xl); padding: var(--space-2xl) var(--space-md); }

@@ -86,3 +86,35 @@ export async function logoutRequest() {
     clearAccessToken();
   }
 }
+
+export async function updateProfile(payload) {
+  const { data } = await api.patch('/users/me/profile', payload);
+  return data.data.user;
+}
+
+export async function fetchVerificationStatus() {
+  const { data } = await api.get('/verification/status');
+  return data.data;
+}
+
+export async function submitVerification(formData) {
+  const { data } = await api.post('/verification/submit', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.data;
+}
+
+export async function fetchAdminVerifications() {
+  const { data } = await api.get('/admin/verifications');
+  return data.data;
+}
+
+export async function approveVerification(id) {
+  const { data } = await api.patch(`/admin/verifications/${id}/approve`);
+  return data.data;
+}
+
+export async function rejectVerification(id, reason) {
+  const { data } = await api.patch(`/admin/verifications/${id}/reject`, { reason });
+  return data.data;
+}

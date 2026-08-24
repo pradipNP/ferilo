@@ -38,6 +38,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 4 complete** — JWT auth: register, login, logout, refresh, `/auth/me`.
+**Phase 6 complete** — Profile editing, identity verification submit, admin verification queue.
 
-**Next: Phase 5** — React frontend foundation polish (or Phase 6 profile + verification).
+**Next: Phase 7** — Product listing system.
