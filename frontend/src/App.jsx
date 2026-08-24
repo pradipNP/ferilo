@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext, useMemo } from 'react';
+import { useEffect, useState, createContext, useContext, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Outlet, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -37,6 +37,11 @@ import {
   rejectOffer,
   counterOffer,
   cancelOffer,
+  fetchConversations,
+  startConversation,
+  fetchConversation,
+  sendMessage,
+  markConversationRead,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -335,6 +340,7 @@ function Header() {
           <Link to="/browse" className="header__nav-link">Browse</Link>
           {user && <Link to="/app/favorites" className="header__nav-link">Favorites</Link>}
           {user && <Link to="/app/offers" className="header__nav-link">Offers</Link>}
+          {user && <Link to="/app/messages" className="header__nav-link">Messages</Link>}
           <Link to="/help" className="header__nav-link">Help</Link>
         </nav>
         <div className="header__actions">
@@ -576,6 +582,10 @@ function DashboardPage() {
           <Link to="/app/offers" className="trust__card dashboard__link">
             <h2>My Offers</h2>
             <p>Track offers you sent and received.</p>
+          </Link>
+          <Link to="/app/messages" className="trust__card dashboard__link">
+            <h2>Messages</h2>
+            <p>Chat with buyers and sellers.</p>
           </Link>
           <Link to="/app/listings/new" className="trust__card dashboard__link">
             <h2>Post an Ad</h2>
@@ -1201,6 +1211,17 @@ function OfferActions({ offer, role, onUpdate }) {
 }
 
 function OfferCard({ offer, role, onUpdate }) {
+  const navigate = useNavigate();
+
+  const handleMessageBuyer = async () => {
+    try {
+      const conversation = await startConversation(offer.productId, offer.buyerId);
+      navigate(`/app/messages/${conversation.id}`);
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Could not start conversation.');
+    }
+  };
+
   return (
     <li className="offer-card">
       <div className="offer-card__main">
@@ -1212,6 +1233,11 @@ function OfferCard({ offer, role, onUpdate }) {
           </p>
           {offer.message && <p className="offer-card__message">&ldquo;{offer.message}&rdquo;</p>}
           <p className="offer-card__date">{new Date(offer.createdAt).toLocaleString()}</p>
+          {role === 'seller' && (
+            <button type="button" className="header__btn header__btn--ghost offer-card__message-btn" onClick={handleMessageBuyer}>
+              Message buyer
+            </button>
+          )}
         </div>
         <div className="offer-card__side">
           <p className="offer-card__amount">{formatPrice(offer.amount)}</p>
@@ -1283,6 +1309,217 @@ function OffersPage() {
   );
 }
 
+function ContactSellerButton({ product }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+
+  if (!user) {
+    return (
+      <p className="auth-subtitle">
+        <Link to="/login">Log in</Link> to contact the seller.
+      </p>
+    );
+  }
+
+  if (user.id === product.seller?.id) return null;
+
+  const handleClick = async () => {
+    setBusy(true);
+    try {
+      const conversation = await startConversation(product.id);
+      navigate(`/app/messages/${conversation.id}`);
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Could not start conversation.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button type="button" className="header__btn header__btn--primary contact-seller-btn" onClick={handleClick} disabled={busy}>
+      {busy ? 'Opening…' : 'Contact seller'}
+    </button>
+  );
+}
+
+function MessagesPage() {
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchConversations()
+      .then(setConversations)
+      .catch(() => setError('Failed to load messages.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>Messages</h1>
+        <p className="dashboard__meta">Your conversations about listings.</p>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : conversations.length === 0 ? (
+          <p className="auth-subtitle">No conversations yet. Contact a seller from a listing page.</p>
+        ) : (
+          <ul className="conversation-list">
+            {conversations.map((c) => (
+              <li key={c.id}>
+                <Link to={`/app/messages/${c.id}`} className="conversation-item">
+                  <div className="conversation-item__main">
+                    <strong>{c.otherUser.displayName}</strong>
+                    <span className="conversation-item__product">{c.productTitle || 'Listing'}</span>
+                    {c.lastMessage && (
+                      <p className="conversation-item__preview">
+                        {c.lastMessage.body.length > 80 ? `${c.lastMessage.body.slice(0, 80)}…` : c.lastMessage.body}
+                      </p>
+                    )}
+                  </div>
+                  <div className="conversation-item__meta">
+                    {c.lastMessage && (
+                      <span className="conversation-item__time">
+                        {new Date(c.lastMessage.createdAt).toLocaleDateString()}
+                      </span>
+                    )}
+                    {c.unreadCount > 0 && (
+                      <span className="conversation-item__unread">{c.unreadCount}</span>
+                    )}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConversationPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [conversation, setConversation] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [body, setBody] = useState('');
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+  const threadRef = useRef(null);
+  const prevMessageCountRef = useRef(0);
+  const isNearBottomRef = useRef(true);
+
+  const scrollThreadToBottom = (smooth = false) => {
+    const el = threadRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  };
+
+  const handleThreadScroll = () => {
+    const el = threadRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
+  useEffect(() => {
+    prevMessageCountRef.current = 0;
+    isNearBottomRef.current = true;
+    let cancelled = false;
+    const loadThread = async () => {
+      try {
+        const data = await fetchConversation(id);
+        if (cancelled) return;
+        setConversation(data.conversation);
+        setMessages(data.messages);
+        await markConversationRead(id);
+      } catch {
+        if (!cancelled) setError('Conversation not found.');
+      }
+    };
+    loadThread();
+    const interval = setInterval(loadThread, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [id]);
+
+  useEffect(() => {
+    if (!messages.length) return;
+
+    const isInitialLoad = prevMessageCountRef.current === 0;
+    const hasNewMessages = messages.length > prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+
+    if (isInitialLoad || (hasNewMessages && isNearBottomRef.current)) {
+      scrollThreadToBottom(!isInitialLoad);
+    }
+  }, [messages]);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!body.trim()) return;
+    setSending(true);
+    try {
+      const message = await sendMessage(id, body.trim());
+      isNearBottomRef.current = true;
+      setMessages((prev) => [...prev, message]);
+      setBody('');
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Failed to send message.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (error) return <div className="container auth-loading">{error}</div>;
+  if (!conversation) return <div className="container auth-loading">Loading…</div>;
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow chat-page">
+        <div className="chat-header">
+          <button type="button" className="header__btn header__btn--ghost" onClick={() => navigate('/app/messages')}>
+            ← Back
+          </button>
+          <div>
+            <h1>{conversation.otherUser.displayName}</h1>
+            <p className="auth-subtitle">
+              {conversation.productTitle && (
+                <Link to={`/products/${conversation.productId}`}>{conversation.productTitle}</Link>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="chat-thread" ref={threadRef} onScroll={handleThreadScroll}>
+          {messages.length === 0 ? (
+            <p className="auth-subtitle chat-thread__empty">No messages yet. Say hello!</p>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className={m.isMine ? 'chat-bubble chat-bubble--mine' : 'chat-bubble chat-bubble--theirs'}>
+                <p>{m.body}</p>
+                <time>{new Date(m.createdAt).toLocaleString()}</time>
+              </div>
+            ))
+          )}
+        </div>
+        <form className="chat-compose" onSubmit={handleSend}>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Write a message…"
+            rows={2}
+            maxLength={5000}
+            required
+          />
+          <button type="submit" className="auth-submit" disabled={sending || !body.trim()}>
+            {sending ? 'Sending…' : 'Send'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ProductDetailPage() {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
@@ -1327,6 +1564,7 @@ function ProductDetailPage() {
             <div><dt>Delivery</dt><dd>{product.deliveryEligible ? 'Available' : 'Meetup only'}</dd></div>
           </dl>
           <p className="auth-subtitle">Seller: {product.seller?.displayName || 'Unknown'}</p>
+          <ContactSellerButton product={product} />
           <MakeOfferPanel product={product} />
         </div>
       </div>
@@ -1706,6 +1944,8 @@ export default function App() {
             <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/app/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
             <Route path="/app/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
+            <Route path="/app/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+            <Route path="/app/messages/:id" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
             <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
             <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
             <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />

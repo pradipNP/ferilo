@@ -237,3 +237,28 @@ export async function cancelOffer(id) {
   const { data } = await api.patch(`/offers/${id}/cancel`);
   return data.data;
 }
+
+export async function fetchConversations() {
+  const { data } = await api.get('/conversations');
+  return data.data;
+}
+
+export async function startConversation(productId, otherUserId) {
+  const { data } = await api.post('/conversations', { productId, otherUserId });
+  return data.data;
+}
+
+export async function fetchConversation(id) {
+  const { data } = await api.get(`/conversations/${id}`);
+  return data.data;
+}
+
+export async function sendMessage(conversationId, body) {
+  const { data } = await api.post(`/conversations/${conversationId}/messages`, { body });
+  return data.data;
+}
+
+export async function markConversationRead(conversationId) {
+  const { data } = await api.patch(`/conversations/${conversationId}/read`);
+  return data.data;
+}

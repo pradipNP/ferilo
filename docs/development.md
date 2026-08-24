@@ -39,6 +39,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 10 complete** — Offers: make/counter/accept/reject/cancel negotiation on negotiable listings.
+**Phase 11 complete** — Messaging: buyer-seller conversations per listing, chat thread, contact seller.
 
-**Next: Phase 11** — Messaging.
+**Next: Phase 12** — Orders.
