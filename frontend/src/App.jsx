@@ -1,5 +1,5 @@
 import { useEffect, useState, createContext, useContext, useMemo, useRef } from 'react';
-import { Routes, Route, Link, Outlet, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Routes, Route, Link, NavLink, Outlet, Navigate, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   fetchMe,
@@ -73,8 +73,29 @@ import {
 const AuthContext = createContext(null);
 const FavoritesContext = createContext(null);
 const NotificationsContext = createContext(null);
+const AreaContext = createContext(null);
 
 const NOTIFICATION_POLL_MS = 45000;
+const AREA_STORAGE_KEY = 'ferilo_area';
+
+/** Service areas focused on Rupandehi & Kapilvastu (Lumbini Province). */
+const SERVICE_AREAS = [
+  { city: '', district: '', label: 'All areas' },
+  { city: 'Bhairahawa', district: 'Rupandehi', label: 'Bhairahawa' },
+  { city: 'Butwal', district: 'Rupandehi', label: 'Butwal' },
+  { city: 'Lumbini', district: 'Rupandehi', label: 'Lumbini' },
+  { city: 'Tilottama', district: 'Rupandehi', label: 'Tilottama' },
+  { city: 'Sainamaina', district: 'Rupandehi', label: 'Sainamaina' },
+  { city: 'Devdaha', district: 'Rupandehi', label: 'Devdaha' },
+  { city: 'Manigram', district: 'Rupandehi', label: 'Manigram' },
+  { city: 'Taulihawa', district: 'Kapilvastu', label: 'Taulihawa' },
+  { city: 'Krishnanagar', district: 'Kapilvastu', label: 'Krishnanagar' },
+  { city: 'Kapilvastu', district: 'Kapilvastu', label: 'Kapilvastu' },
+  { city: 'Bahadurganj', district: 'Kapilvastu', label: 'Bahadurganj' },
+];
+
+const DEFAULT_CITY = 'Bhairahawa';
+const DEFAULT_DISTRICT = 'Rupandehi';
 
 function useAuth() {
   return useContext(AuthContext);
@@ -86,6 +107,43 @@ function useFavorites() {
 
 function useNotifications() {
   return useContext(NotificationsContext);
+}
+
+function useArea() {
+  return useContext(AreaContext);
+}
+
+function AreaProvider({ children }) {
+  const [area, setAreaState] = useState(() => {
+    try {
+      const raw = localStorage.getItem(AREA_STORAGE_KEY);
+      if (!raw) return { city: '', district: '' };
+      const parsed = JSON.parse(raw);
+      return { city: parsed.city || '', district: parsed.district || '' };
+    } catch {
+      return { city: '', district: '' };
+    }
+  });
+
+  const setArea = (next) => {
+    const value = { city: next.city || '', district: next.district || '' };
+    setAreaState(value);
+    localStorage.setItem(AREA_STORAGE_KEY, JSON.stringify(value));
+  };
+
+  return (
+    <AreaContext.Provider value={{ area, setArea, areas: SERVICE_AREAS }}>
+      {children}
+    </AreaContext.Provider>
+  );
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [pathname]);
+  return null;
 }
 
 function FavoritesProvider({ children }) {
@@ -391,12 +449,15 @@ function AuthProvider({ children }) {
 
 function HeaderSearch() {
   const navigate = useNavigate();
+  const { area } = useArea();
   const [query, setQuery] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const params = new URLSearchParams();
     if (query.trim()) params.set('q', query.trim());
+    if (area.city) params.set('city', area.city);
+    if (area.district) params.set('district', area.district);
     navigate(params.toString() ? `/browse?${params.toString()}` : '/browse');
   };
 
@@ -414,44 +475,100 @@ function HeaderSearch() {
   );
 }
 
+function AreaSelect() {
+  const { area, setArea, areas } = useArea();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  const currentValue = area.city ? `${area.city}|${area.district}` : '';
+
+  const handleChange = (e) => {
+    const value = e.target.value;
+    const selected = areas.find((a) => (a.city ? `${a.city}|${a.district}` : '') === value)
+      || { city: '', district: '' };
+    setArea(selected);
+
+    if (location.pathname === '/browse' || location.pathname.startsWith('/categories/')) {
+      const params = new URLSearchParams(searchParams);
+      if (selected.city) params.set('city', selected.city);
+      else params.delete('city');
+      if (selected.district) params.set('district', selected.district);
+      else params.delete('district');
+      params.delete('page');
+      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+    }
+  };
+
+  return (
+    <label className="header__area">
+      <span className="sr-only">Area</span>
+      <select value={currentValue} onChange={handleChange} aria-label="Select area">
+        {areas.map((a) => (
+          <option key={a.label} value={a.city ? `${a.city}|${a.district}` : ''}>
+            {a.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SubNavLink({ to, children, end = false }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => (isActive ? 'subnav__link subnav__link--active' : 'subnav__link')}
+    >
+      {children}
+    </NavLink>
+  );
+}
+
 function Header() {
   const { user, logout } = useAuth();
 
   return (
     <header className="header">
-      <div className="container header__inner">
-        <Link to="/" className="header__logo">
-          <span className="header__logo-mark">F</span>
-          <span className="header__logo-text">FERILO</span>
-        </Link>
-        <HeaderSearch />
-        <nav className="header__nav" aria-label="Main navigation">
-          <Link to="/browse" className="header__nav-link">Browse</Link>
-          {user && <Link to="/app/favorites" className="header__nav-link">Favorites</Link>}
-          {user && <Link to="/app/offers" className="header__nav-link">Offers</Link>}
-          {user && <Link to="/app/messages" className="header__nav-link">Messages</Link>}
-          {user && <Link to="/app/orders" className="header__nav-link">Orders</Link>}
-          <Link to="/help" className="header__nav-link">Help</Link>
-        </nav>
-        <div className="header__actions">
-          {user ? (
-            <>
-              <NotificationBell />
-              <Link to="/app/dashboard" className="header__user">
-                {user.displayName || user.email}
-              </Link>
-              <button type="button" className="header__btn header__btn--ghost" onClick={logout}>
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="header__btn header__btn--ghost">Login</Link>
-              <Link to="/register" className="header__btn header__btn--primary">Sign Up</Link>
-            </>
-          )}
+      <div className="header__top">
+        <div className="container header__inner">
+          <Link to="/" className="header__logo">
+            <span className="header__logo-mark">F</span>
+            <span className="header__logo-text">FERILO</span>
+          </Link>
+          <AreaSelect />
+          <HeaderSearch />
+          <div className="header__actions">
+            {user ? (
+              <>
+                <NotificationBell />
+                <Link to="/app/dashboard" className="header__user">
+                  {user.displayName || user.email}
+                </Link>
+                <button type="button" className="header__btn header__btn--ghost" onClick={logout}>
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="header__btn header__btn--ghost">Login</Link>
+                <Link to="/register" className="header__btn header__btn--primary">Sign Up</Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
+      <nav className="subnav" aria-label="Primary">
+        <div className="container subnav__inner">
+          <SubNavLink to="/browse">Browse</SubNavLink>
+          {user && <SubNavLink to="/app/favorites">Favorites</SubNavLink>}
+          {user && <SubNavLink to="/app/offers">Offers</SubNavLink>}
+          {user && <SubNavLink to="/app/messages">Messages</SubNavLink>}
+          {user && <SubNavLink to="/app/orders">Orders</SubNavLink>}
+          <SubNavLink to="/help">Help</SubNavLink>
+        </div>
+      </nav>
     </header>
   );
 }
@@ -544,7 +661,7 @@ function HomePage() {
         <div className="container hero__inner">
           <p className="hero__eyebrow">Nepal&apos;s Verified Marketplace</p>
           <h1 className="hero__title">Buy. Sell. <span className="hero__highlight">Give It Another Life.</span></h1>
-          <p className="hero__subtitle">Discover trusted second-hand deals from verified sellers across Nepal.</p>
+          <p className="hero__subtitle">Discover trusted second-hand deals from verified sellers across Rupandehi, Kapilvastu, and Lumbini.</p>
         </div>
       </section>
       <section className="categories">
@@ -764,8 +881,8 @@ function ProfilePage() {
         <form className="auth-form profile-form" onSubmit={handleSubmit}>
           <label>Display name<input name="displayName" value={form.displayName} onChange={handleChange} required /></label>
           <label>Phone<input name="phone" value={form.phone} onChange={handleChange} placeholder="+977 9800000000" /></label>
-          <label>City<input name="city" value={form.city} onChange={handleChange} placeholder="Kathmandu" /></label>
-          <label>District<input name="district" value={form.district} onChange={handleChange} placeholder="Kathmandu" /></label>
+          <label>City<input name="city" value={form.city} onChange={handleChange} placeholder="Bhairahawa" /></label>
+          <label>District<input name="district" value={form.district} onChange={handleChange} placeholder="Rupandehi" /></label>
           <label>Bio<textarea name="bio" value={form.bio} onChange={handleChange} rows={4} maxLength={500} /></label>
           <button type="submit" className="auth-submit" disabled={saving}>{saving ? 'Saving…' : 'Save profile'}</button>
         </form>
@@ -999,7 +1116,7 @@ function MyReportsPage() {
 
   return (
     <div className="dashboard">
-      <div className="container narrow">
+      <div className="container">
         <h1>My Reports</h1>
         <p className="dashboard__meta">Reports you submitted for moderation.</p>
         {error && <p className="auth-error">{error}</p>}
@@ -1367,6 +1484,7 @@ function ProductGrid({ products }) {
 
 function ProductListingPage({ fixedCategoryId, pageTitle, categoryIcon }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { area } = useArea();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [meta, setMeta] = useState({ page: 1, limit: 24, total: 0 });
@@ -1378,7 +1496,12 @@ function ProductListingPage({ fixedCategoryId, pageTitle, categoryIcon }) {
     [searchParams, fixedCategoryId],
   );
 
-  const queryParams = useMemo(() => buildProductQuery(activeFilters), [activeFilters]);
+  const queryParams = useMemo(() => {
+    const filters = { ...activeFilters };
+    if (!filters.city && area.city) filters.city = area.city;
+    if (!filters.district && area.district) filters.district = area.district;
+    return buildProductQuery(filters);
+  }, [activeFilters, area.city, area.district]);
 
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => setCategories(FALLBACK_CATEGORIES));
@@ -1483,11 +1606,11 @@ function ProductListingPage({ fixedCategoryId, pageTitle, categoryIcon }) {
               )}
               <label>
                 City
-                <input name="city" value={draft.city} onChange={handleDraftChange} placeholder="e.g. Kathmandu" />
+                <input name="city" value={draft.city} onChange={handleDraftChange} placeholder="e.g. Bhairahawa" />
               </label>
               <label>
                 District
-                <input name="district" value={draft.district} onChange={handleDraftChange} placeholder="e.g. Lalitpur" />
+                <input name="district" value={draft.district} onChange={handleDraftChange} placeholder="e.g. Rupandehi" />
               </label>
               <label>
                 Condition
@@ -1891,7 +2014,7 @@ function MessagesPage() {
 
   return (
     <div className="dashboard">
-      <div className="container narrow">
+      <div className="container">
         <h1>Messages</h1>
         <p className="dashboard__meta">Your conversations about listings.</p>
         {error && <p className="auth-error">{error}</p>}
@@ -2060,7 +2183,7 @@ function PlaceOrderPanel({ product, offerId }) {
   const [fulfillmentType, setFulfillmentType] = useState(product.meetupAvailable ? 'MEETUP' : 'DELIVERY');
   const [meetupNote, setMeetupNote] = useState('');
   const [address, setAddress] = useState({
-    street: '', city: user?.city || 'Kathmandu', district: user?.district || 'Kathmandu', phone: user?.phone || '',
+    street: '', city: user?.city || DEFAULT_CITY, district: user?.district || DEFAULT_DISTRICT, phone: user?.phone || '',
   });
   const [quote, setQuote] = useState(null);
   const [quoteError, setQuoteError] = useState('');
@@ -2426,7 +2549,7 @@ function NotificationsPage() {
 
   return (
     <div className="dashboard">
-      <div className="container narrow">
+      <div className="container">
         <div className="notif-head">
           <div>
             <h1>Notifications</h1>
@@ -2867,7 +2990,7 @@ function ListingFormPage({ editId }) {
   const [images, setImages] = useState([]);
   const [form, setForm] = useState({
     title: '', description: '', categoryId: '', condition: 'GOOD', price: '',
-    city: user?.city || 'Kathmandu', district: user?.district || 'Kathmandu',
+    city: user?.city || DEFAULT_CITY, district: user?.district || DEFAULT_DISTRICT,
     brand: '', isNegotiable: true, deliverySizeTier: 'SMALL', requiresTrolley: false,
   });
 
@@ -3078,6 +3201,7 @@ function GuestRoute({ children }) {
 function Layout() {
   return (
     <div className="app-layout">
+      <ScrollToTop />
       <Header />
       <main className="app-main"><Outlet /></main>
       <Footer />
@@ -3088,10 +3212,11 @@ function Layout() {
 export default function App() {
   return (
     <AuthProvider>
-      <NotificationsProvider>
-        <FavoritesProvider>
-          <Routes>
-            <Route element={<Layout />}>
+      <AreaProvider>
+        <NotificationsProvider>
+          <FavoritesProvider>
+            <Routes>
+              <Route element={<Layout />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/browse" element={<BrowsePage />} />
               <Route path="/categories/:slug" element={<CategoryPage />} />
@@ -3131,8 +3256,9 @@ export default function App() {
               <Route path="/policies/prohibited-items" element={<StaticPage title="Prohibited & Restricted Items"><p>Weapons, drugs, stolen goods, and other illegal items are banned. Listings that break the rules may be removed.</p></StaticPage>} />
             </Route>
           </Routes>
-        </FavoritesProvider>
-      </NotificationsProvider>
+          </FavoritesProvider>
+        </NotificationsProvider>
+      </AreaProvider>
     </AuthProvider>
   );
 }

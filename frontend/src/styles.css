@@ -19,6 +19,7 @@
   --space-2xl: 3rem;
   --max-width: 1200px;
   --header-height: 64px;
+  --subnav-height: 44px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -39,15 +40,16 @@ button { cursor: pointer; }
 .container { width: 100%; max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-md); }
 @media (min-width: 768px) { .container { padding: 0 var(--space-xl); } }
 
-.header { position: sticky; top: 0; z-index: 100; height: var(--header-height); background: var(--color-surface); border-bottom: 1px solid var(--color-border); box-shadow: var(--shadow-sm); }
+.header { position: sticky; top: 0; z-index: 100; background: var(--color-surface); border-bottom: 1px solid var(--color-border); box-shadow: var(--shadow-sm); }
+.header__top { height: var(--header-height); border-bottom: 1px solid var(--color-border); }
 .header__inner { display: flex; align-items: center; justify-content: space-between; height: 100%; gap: var(--space-md); }
-.header__logo { display: flex; align-items: center; gap: var(--space-sm); font-weight: 700; color: var(--color-primary); }
+.header__logo { display: flex; align-items: center; gap: var(--space-sm); font-weight: 700; color: var(--color-primary); flex-shrink: 0; }
 .header__logo-mark { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: var(--color-primary); color: var(--color-accent); border-radius: var(--radius-sm); font-size: 1.125rem; }
 .header__logo-text { font-size: 1.25rem; letter-spacing: 0.04em; }
-.header__nav { display: none; gap: var(--space-lg); }
-.header__nav-link { color: var(--color-text-muted); font-weight: 500; }
-.header__nav-link:hover { color: var(--color-primary); }
-.header__actions { display: flex; align-items: center; gap: var(--space-sm); }
+.header__area { display: block; flex-shrink: 0; }
+.header__area select { max-width: 130px; padding: 0.5rem 0.625rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; font-weight: 600; color: var(--color-primary); background: var(--color-bg); }
+.header__area select:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; border-color: var(--color-accent); }
+.header__actions { display: flex; align-items: center; gap: var(--space-sm); flex-shrink: 0; }
 .header__btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; border: none; }
 .header__btn--ghost { background: transparent; color: var(--color-text); }
 .header__btn--ghost:hover { background: var(--color-bg); }
@@ -59,7 +61,15 @@ button { cursor: pointer; }
 .header__search input:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; border-color: var(--color-accent); }
 .header__search-btn { padding: 0.5rem 0.875rem; border: none; border-radius: var(--radius-sm); background: var(--color-primary); color: #fff; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
 .header__search-btn:hover { background: #243456; }
-@media (min-width: 768px) { .header__nav { display: flex; } .header__search { display: flex; } }
+.subnav { height: var(--subnav-height); background: var(--color-bg); }
+.subnav__inner { display: flex; align-items: center; gap: var(--space-md); height: 100%; overflow-x: auto; }
+.subnav__link { flex-shrink: 0; padding: 0.35rem 0; font-size: 0.875rem; font-weight: 600; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.subnav__link:hover { color: var(--color-primary); }
+.subnav__link--active { color: var(--color-primary); border-bottom-color: var(--color-accent); }
+@media (min-width: 768px) {
+  .header__area select { max-width: 150px; }
+  .header__search { display: flex; }
+}
 
 .auth-page { display: flex; justify-content: center; padding: var(--space-2xl) var(--space-md); }
 .auth-card { width: 100%; max-width: 420px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-xl); box-shadow: var(--shadow-sm); }

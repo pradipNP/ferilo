@@ -16,11 +16,15 @@ const LEGACY_SEED_EMAIL = process.env.SEED_SELLER_EMAIL ?? 'seed@ferilo.local';
 const PER_CATEGORY = Math.max(15, parseInt(process.env.SEED_PRODUCTS_PER_CATEGORY || '15', 10));
 
 const CITIES = [
-  { city: 'Kathmandu', district: 'Kathmandu' },
-  { city: 'Lalitpur', district: 'Lalitpur' },
-  { city: 'Bhaktapur', district: 'Bhaktapur' },
-  { city: 'Pokhara', district: 'Kaski' },
-  { city: 'Biratnagar', district: 'Morang' },
+  { city: 'Bhairahawa', district: 'Rupandehi' },
+  { city: 'Butwal', district: 'Rupandehi' },
+  { city: 'Lumbini', district: 'Rupandehi' },
+  { city: 'Tilottama', district: 'Rupandehi' },
+  { city: 'Sainamaina', district: 'Rupandehi' },
+  { city: 'Devdaha', district: 'Rupandehi' },
+  { city: 'Taulihawa', district: 'Kapilvastu' },
+  { city: 'Krishnanagar', district: 'Kapilvastu' },
+  { city: 'Kapilvastu', district: 'Kapilvastu' },
 ];
 
 const CONDITIONS = ['NEW_LIKE', 'GOOD', 'FAIR', 'POOR'];
@@ -303,7 +307,7 @@ async function ensureAdminSeller(client) {
 
   await client.query(
     `INSERT INTO user_profiles (user_id, display_name, city, district)
-     VALUES ($1, 'FERILO Admin', 'Kathmandu', 'Kathmandu')
+     VALUES ($1, 'FERILO Admin', 'Bhairahawa', 'Rupandehi')
      ON CONFLICT (user_id) DO UPDATE SET display_name = 'FERILO Admin'`,
     [rows[0].id],
   );

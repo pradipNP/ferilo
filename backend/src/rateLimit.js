@@ -12,9 +12,12 @@ export function createRateLimiter({
   windowMs = 15 * 60 * 1000,
   max = 100,
   keyFn = (req) => req.ip,
+  skip = () => false,
   message = 'Too many requests. Please try again later.',
 } = {}) {
   return function rateLimit(req, res, next) {
+    if (skip(req)) return next();
+
     const key = keyFn(req);
     if (!key) return next();
 
@@ -40,10 +43,20 @@ export function createRateLimiter({
   };
 }
 
+function isDev() {
+  return (process.env.NODE_ENV || 'development') !== 'production';
+}
+
+const SKIP_PATHS = new Set([
+  '/health',
+  '/categories',
+  '/notifications/unread-count',
+]);
+
 export function createAuthRateLimiter() {
   return createRateLimiter({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-    max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
+    max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || (isDev() ? '100' : '30'), 10),
     keyFn: (req) => `auth:${req.ip}`,
     message: 'Too many authentication attempts. Please wait and try again.',
   });
@@ -51,8 +64,10 @@ export function createAuthRateLimiter() {
 
 export function createApiRateLimiter() {
   return createRateLimiter({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '300', 10),
+    // Dev browsers poll notifications + HMR and can burn a tiny bucket quickly.
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || (isDev() ? '60000' : '900000'), 10),
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || (isDev() ? '2000' : '800'), 10),
     keyFn: (req) => `api:${req.ip}`,
+    skip: (req) => SKIP_PATHS.has(req.path) || req.path.startsWith('/categories/'),
   });
 }

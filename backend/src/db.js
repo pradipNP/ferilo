@@ -64,7 +64,7 @@ export async function seed() {
 
     await client.query(
       `INSERT INTO user_profiles (user_id, display_name, city, district)
-       SELECT id, 'FERILO Admin', 'Kathmandu', 'Kathmandu'
+       SELECT id, 'FERILO Admin', 'Bhairahawa', 'Rupandehi'
        FROM users WHERE email = $1
        ON CONFLICT (user_id) DO NOTHING`,
       [adminEmail],
