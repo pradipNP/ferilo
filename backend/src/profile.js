@@ -6,6 +6,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { pool } from './db.js';
 import { createAuthenticate, createRequireRole } from './auth.js';
+import { notify } from './notifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -310,6 +311,15 @@ export function attachProfileRoutes(router, { asyncHandler, validate, sendSucces
           [req.user.id, id],
         );
         await client.query('COMMIT');
+
+        await notify(null, {
+          userId: rows[0].user_id,
+          type: 'VERIFICATION_APPROVED',
+          title: 'Identity verified',
+          body: 'Your identity is verified. You can now publish listings on FERILO.',
+          link: '/app/listings/new',
+        });
+
         sendSuccess(res, { message: 'User verified successfully.' });
       } catch (err) {
         await client.query('ROLLBACK');
@@ -350,6 +360,15 @@ export function attachProfileRoutes(router, { asyncHandler, validate, sendSucces
           [req.user.id, id, JSON.stringify({ reason })],
         );
         await client.query('COMMIT');
+
+        await notify(null, {
+          userId: rows[0].user_id,
+          type: 'VERIFICATION_REJECTED',
+          title: 'Verification rejected',
+          body: `Your verification was rejected. Reason: ${reason}`,
+          link: '/app/verification',
+        });
+
         sendSuccess(res, { message: 'Verification rejected.' });
       } catch (err) {
         await client.query('ROLLBACK');
@@ -381,6 +400,15 @@ export function attachProfileRoutes(router, { asyncHandler, validate, sendSucces
         `UPDATE users SET verification_status = 'UNVERIFIED', updated_at = NOW() WHERE id = $1`,
         [rows[0].user_id],
       );
+
+      await notify(null, {
+        userId: rows[0].user_id,
+        type: 'VERIFICATION_RESUBMIT',
+        title: 'Verification needs resubmission',
+        body: `Please resubmit your documents. Reason: ${reason}`,
+        link: '/app/verification',
+      });
+
       sendSuccess(res, { message: 'Resubmission requested.' });
     }),
   );

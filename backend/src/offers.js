@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { pool } from './db.js';
 import { createAuthenticate } from './auth.js';
+import { notify, formatNpr } from './notifications.js';
 
 const OFFER_EXPIRY_DAYS = 7;
 
@@ -77,6 +78,14 @@ function canRespondAsSeller(offer, userId) {
 
 function canRespondAsBuyer(offer, userId) {
   return offer.status === 'PENDING' && offer.buyerId === userId && !!offer.parentOfferId;
+}
+
+function counterpartyOf(offer, userId) {
+  return offer.sellerId === userId ? offer.buyerId : offer.sellerId;
+}
+
+function actorName(offer, userId) {
+  return (offer.sellerId === userId ? offer.sellerName : offer.buyerName) || 'A FERILO member';
 }
 
 export function attachOfferRoutes(router, { asyncHandler, validate, sendSuccess, AppError }) {
@@ -164,7 +173,16 @@ export function attachOfferRoutes(router, { asyncHandler, validate, sendSuccess,
         [productId, req.user.id, product.seller_id, amount, message?.trim() || null, expiresAt],
       );
 
-      sendSuccess(res, await loadOffer(rows[0].id), null, 201);
+      const offer = await loadOffer(rows[0].id);
+      await notify(null, {
+        userId: offer.sellerId,
+        type: 'OFFER_RECEIVED',
+        title: 'New offer received',
+        body: `${offer.buyerName || 'A buyer'} offered ${formatNpr(offer.amount)} for "${offer.productTitle}".`,
+        link: '/app/offers',
+      });
+
+      sendSuccess(res, offer, null, 201);
     }),
   );
 
@@ -183,6 +201,14 @@ export function attachOfferRoutes(router, { asyncHandler, validate, sendSuccess,
         `UPDATE offers SET status = 'ACCEPTED', updated_at = NOW() WHERE id = $1`,
         [offer.id],
       );
+
+      await notify(null, {
+        userId: counterpartyOf(offer, req.user.id),
+        type: 'OFFER_ACCEPTED',
+        title: 'Offer accepted',
+        body: `${actorName(offer, req.user.id)} accepted the ${formatNpr(offer.amount)} offer on "${offer.productTitle}". You can place the order now.`,
+        link: `/products/${offer.productId}?offerId=${offer.id}`,
+      });
 
       sendSuccess(res, await loadOffer(offer.id));
     }),
@@ -203,6 +229,14 @@ export function attachOfferRoutes(router, { asyncHandler, validate, sendSuccess,
         `UPDATE offers SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`,
         [offer.id],
       );
+
+      await notify(null, {
+        userId: counterpartyOf(offer, req.user.id),
+        type: 'OFFER_REJECTED',
+        title: 'Offer declined',
+        body: `${actorName(offer, req.user.id)} declined the ${formatNpr(offer.amount)} offer on "${offer.productTitle}".`,
+        link: '/app/offers',
+      });
 
       sendSuccess(res, await loadOffer(offer.id));
     }),
@@ -251,6 +285,15 @@ export function attachOfferRoutes(router, { asyncHandler, validate, sendSuccess,
           ],
         );
         await client.query('COMMIT');
+
+        await notify(null, {
+          userId: counterpartyOf(offer, req.user.id),
+          type: 'OFFER_COUNTERED',
+          title: 'Counter offer received',
+          body: `${actorName(offer, req.user.id)} countered with ${formatNpr(amount)} on "${offer.productTitle}".`,
+          link: '/app/offers',
+        });
+
         sendSuccess(res, await loadOffer(rows[0].id), null, 201);
       } catch (err) {
         await client.query('ROLLBACK');
@@ -276,6 +319,14 @@ export function attachOfferRoutes(router, { asyncHandler, validate, sendSuccess,
         `UPDATE offers SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`,
         [offer.id],
       );
+
+      await notify(null, {
+        userId: offer.sellerId,
+        type: 'OFFER_CANCELLED',
+        title: 'Offer withdrawn',
+        body: `${offer.buyerName || 'The buyer'} withdrew the ${formatNpr(offer.amount)} offer on "${offer.productTitle}".`,
+        link: '/app/offers',
+      });
 
       sendSuccess(res, await loadOffer(offer.id));
     }),

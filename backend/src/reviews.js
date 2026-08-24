@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { pool } from './db.js';
 import { createAuthenticate } from './auth.js';
+import { notify } from './notifications.js';
 
 const reviewBodySchema = z.object({
   rating: z.coerce
@@ -212,7 +213,17 @@ export function attachReviewRoutes(router, { asyncHandler, validate, sendSuccess
         );
         await refreshRatingAverages(client, revieweeId);
         await client.query('COMMIT');
-        sendSuccess(res, await loadReview(rows[0].id), null, 201);
+
+        const review = await loadReview(rows[0].id);
+        await notify(null, {
+          userId: revieweeId,
+          type: 'REVIEW_RECEIVED',
+          title: `You received a ${rating}-star review`,
+          body: `${review.reviewerName || 'A FERILO member'} reviewed you for "${review.productTitle}".`,
+          link: `/app/orders/${orderId}`,
+        });
+
+        sendSuccess(res, review, null, 201);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;

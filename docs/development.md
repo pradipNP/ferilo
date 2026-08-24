@@ -39,6 +39,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 13 complete** — Reviews: two-way ratings on completed orders, rating averages on profiles, public member profile at `/sellers/:id`.
+**Phase 14 complete** — Notifications: in-app feed at `/app/notifications`, header bell with unread count, events emitted from offer, order, review and verification flows.
 
-**Next: Phase 14** — Notifications.
+**Next: Phase 15** — Reports & moderation.

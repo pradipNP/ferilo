@@ -322,3 +322,23 @@ export async function fetchUserReviews(userId) {
   const { data } = await api.get(`/users/${userId}/reviews`);
   return data.data;
 }
+
+export async function fetchNotifications(params = {}) {
+  const { data } = await api.get('/notifications', { params });
+  return data.data;
+}
+
+export async function fetchUnreadNotificationCount() {
+  const { data } = await api.get('/notifications/unread-count');
+  return data.data.unreadCount;
+}
+
+export async function markNotificationRead(id) {
+  const { data } = await api.patch(`/notifications/${id}/read`);
+  return data.data;
+}
+
+export async function markAllNotificationsRead() {
+  const { data } = await api.patch('/notifications/read-all');
+  return data.data;
+}

@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { pool } from './db.js';
 import { createAuthenticate } from './auth.js';
+import { notify, formatNpr } from './notifications.js';
+
+const STATUS_LABELS = {
+  READY_FOR_MEETUP: 'ready for meetup',
+  READY_FOR_DELIVERY: 'ready for delivery',
+  IN_TRANSIT: 'in transit',
+  DELIVERED: 'delivered',
+};
 
 const deliveryAddressSchema = z.object({
   street: z.string().min(3).max(200),
@@ -399,7 +407,17 @@ export function attachOrderRoutes(router, { asyncHandler, validate, sendSuccess,
         );
         await recordStatusChange(client, rows[0].id, null, 'PENDING', req.user.id, 'Order placed');
         await client.query('COMMIT');
-        sendSuccess(res, await loadOrder(rows[0].id, req.user.id), null, 201);
+
+        const order = await loadOrder(rows[0].id, req.user.id);
+        await notify(null, {
+          userId: order.sellerId,
+          type: 'ORDER_PLACED',
+          title: 'New order received',
+          body: `${order.buyerName || 'A buyer'} placed a ${formatNpr(order.totalAmount)} order for "${order.productTitle}". Confirm it to reserve the item.`,
+          link: `/app/orders/${order.id}`,
+        });
+
+        sendSuccess(res, order, null, 201);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -432,6 +450,15 @@ export function attachOrderRoutes(router, { asyncHandler, validate, sendSuccess,
         );
         await recordStatusChange(client, order.id, 'PENDING', 'CONFIRMED', req.user.id, 'Seller confirmed order');
         await client.query('COMMIT');
+
+        await notify(null, {
+          userId: order.buyerId,
+          type: 'ORDER_CONFIRMED',
+          title: 'Order confirmed',
+          body: `${order.sellerName || 'The seller'} confirmed your order for "${order.productTitle}".`,
+          link: `/app/orders/${order.id}`,
+        });
+
         sendSuccess(res, await loadOrder(order.id, req.user.id));
       } catch (err) {
         await client.query('ROLLBACK');
@@ -463,6 +490,15 @@ export function attachOrderRoutes(router, { asyncHandler, validate, sendSuccess,
 
       await pool.query(`UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2`, [status, order.id]);
       await recordStatusChange(null, order.id, order.status, status, req.user.id, note);
+
+      await notify(null, {
+        userId: order.buyerId,
+        type: 'ORDER_STATUS',
+        title: 'Order update',
+        body: `"${order.productTitle}" is now ${STATUS_LABELS[status] || status.toLowerCase()}.${note ? ` Note: ${note}` : ''}`,
+        link: `/app/orders/${order.id}`,
+      });
+
       sendSuccess(res, await loadOrder(order.id, req.user.id));
     }),
   );
@@ -510,6 +546,15 @@ export function attachOrderRoutes(router, { asyncHandler, validate, sendSuccess,
         );
         await recordStatusChange(client, order.id, order.status, 'COMPLETED', req.user.id, 'Order completed');
         await client.query('COMMIT');
+
+        await notify(null, {
+          userId: isBuyer ? order.sellerId : order.buyerId,
+          type: 'ORDER_COMPLETED',
+          title: 'Order completed',
+          body: `"${order.productTitle}" is complete. Leave a review to help others trade safely.`,
+          link: `/app/orders/${order.id}`,
+        });
+
         sendSuccess(res, await loadOrder(order.id, req.user.id));
       } catch (err) {
         await client.query('ROLLBACK');
@@ -548,6 +593,15 @@ export function attachOrderRoutes(router, { asyncHandler, validate, sendSuccess,
         );
         await recordStatusChange(client, order.id, order.status, 'CANCELLED', req.user.id, reason);
         await client.query('COMMIT');
+
+        await notify(null, {
+          userId: order.buyerId === req.user.id ? order.sellerId : order.buyerId,
+          type: 'ORDER_CANCELLED',
+          title: 'Order cancelled',
+          body: `The order for "${order.productTitle}" was cancelled. Reason: ${reason}`,
+          link: `/app/orders/${order.id}`,
+        });
+
         sendSuccess(res, await loadOrder(order.id, req.user.id));
       } catch (err) {
         await client.query('ROLLBACK');

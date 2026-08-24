@@ -54,10 +54,17 @@ import {
   fetchOrderReviews,
   createReview,
   fetchUserReviews,
+  fetchNotifications,
+  fetchUnreadNotificationCount,
+  markNotificationRead,
+  markAllNotificationsRead,
 } from './api';
 
 const AuthContext = createContext(null);
 const FavoritesContext = createContext(null);
+const NotificationsContext = createContext(null);
+
+const NOTIFICATION_POLL_MS = 45000;
 
 function useAuth() {
   return useContext(AuthContext);
@@ -65,6 +72,10 @@ function useAuth() {
 
 function useFavorites() {
   return useContext(FavoritesContext);
+}
+
+function useNotifications() {
+  return useContext(NotificationsContext);
 }
 
 function FavoritesProvider({ children }) {
@@ -119,6 +130,50 @@ function FavoritesProvider({ children }) {
     <FavoritesContext.Provider value={{ favoriteIds, isFavorite, toggleFavorite, refreshFavorites, loading }}>
       {children}
     </FavoritesContext.Provider>
+  );
+}
+
+function NotificationsProvider({ children }) {
+  const { user } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const load = () => {
+      fetchUnreadNotificationCount()
+        .then((count) => { if (!cancelled) setUnreadCount(count); })
+        .catch(() => { /* polling failures are not worth surfacing */ });
+    };
+    load();
+    const timer = setInterval(load, NOTIFICATION_POLL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [user]);
+
+  return (
+    <NotificationsContext.Provider value={{ unreadCount, setUnreadCount }}>
+      {children}
+    </NotificationsContext.Provider>
+  );
+}
+
+function NotificationBell() {
+  const { unreadCount } = useNotifications();
+
+  return (
+    <Link
+      to="/app/notifications"
+      className="notif-bell"
+      aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+    >
+      <span aria-hidden="true">🔔</span>
+      {unreadCount > 0 && (
+        <span className="notif-bell__badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+      )}
+    </Link>
   );
 }
 
@@ -371,6 +426,7 @@ function Header() {
         <div className="header__actions">
           {user ? (
             <>
+              <NotificationBell />
               <Link to="/app/dashboard" className="header__user">
                 {user.displayName || user.email}
               </Link>
@@ -1870,6 +1926,107 @@ function OrderDetailPage() {
   );
 }
 
+function relativeTime(value) {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(value).toLocaleDateString();
+}
+
+function NotificationsPage() {
+  const { setUnreadCount } = useNotifications();
+  const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchNotifications({ limit: 50 })
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data.notifications);
+        setUnreadCount(data.unreadCount);
+      })
+      .catch(() => { if (!cancelled) setError('Failed to load notifications.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [setUnreadCount]);
+
+  const handleOpen = async (notification) => {
+    if (!notification.isRead) {
+      setItems((prev) => prev.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n)));
+      try {
+        const result = await markNotificationRead(notification.id);
+        setUnreadCount(result.unreadCount);
+      } catch {
+        /* the optimistic update is good enough here */
+      }
+    }
+    if (notification.link) navigate(notification.link);
+  };
+
+  const handleMarkAll = async () => {
+    try {
+      await markAllNotificationsRead();
+      setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Could not mark all as read.');
+    }
+  };
+
+  const unread = items.filter((n) => !n.isRead).length;
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <div className="notif-head">
+          <div>
+            <h1>Notifications</h1>
+            <p className="dashboard__meta">
+              {unread > 0 ? `${unread} unread` : 'You are all caught up.'}
+            </p>
+          </div>
+          {unread > 0 && (
+            <button type="button" className="header__btn header__btn--ghost" onClick={handleMarkAll}>
+              Mark all read
+            </button>
+          )}
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="auth-subtitle">No notifications yet. Offers, orders and reviews will show up here.</p>
+        ) : (
+          <ul className="notif-list">
+            {items.map((n) => (
+              <li key={n.id}>
+                <button
+                  type="button"
+                  className={n.isRead ? 'notif-item' : 'notif-item notif-item--unread'}
+                  onClick={() => handleOpen(n)}
+                >
+                  <span className="notif-item__title">{n.title}</span>
+                  <span className="notif-item__body">{n.body}</span>
+                  <span className="notif-item__time">{relativeTime(n.createdAt)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Stars({ value = 0, className = '' }) {
   const rating = Number(value) || 0;
   const filled = Math.round(rating);
@@ -2489,32 +2646,35 @@ function Layout() {
 export default function App() {
   return (
     <AuthProvider>
-      <FavoritesProvider>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/browse" element={<BrowsePage />} />
-            <Route path="/categories/:slug" element={<CategoryPage />} />
-            <Route path="/products/:id" element={<ProductDetailPage />} />
-            <Route path="/sellers/:id" element={<MemberProfilePage />} />
-            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-            <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-            <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/app/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
-            <Route path="/app/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
-            <Route path="/app/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
-            <Route path="/app/messages/:id" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
-            <Route path="/app/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-            <Route path="/app/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
-            <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
-            <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
-            <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
-            <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-            <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
-            <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
-          </Route>
-        </Routes>
-      </FavoritesProvider>
+      <NotificationsProvider>
+        <FavoritesProvider>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/browse" element={<BrowsePage />} />
+              <Route path="/categories/:slug" element={<CategoryPage />} />
+              <Route path="/products/:id" element={<ProductDetailPage />} />
+              <Route path="/sellers/:id" element={<MemberProfilePage />} />
+              <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+              <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+              <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+              <Route path="/app/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+              <Route path="/app/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
+              <Route path="/app/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+              <Route path="/app/messages/:id" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
+              <Route path="/app/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+              <Route path="/app/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
+              <Route path="/app/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
+              <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
+              <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
+              <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
+              <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
+              <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
+            </Route>
+          </Routes>
+        </FavoritesProvider>
+      </NotificationsProvider>
     </AuthProvider>
   );
 }
