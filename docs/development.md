@@ -39,6 +39,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 12 complete** — Orders: meetup/delivery checkout, delivery quotes, seller confirmation, status tracking.
+**Phase 13 complete** — Reviews: two-way ratings on completed orders, rating averages on profiles, public member profile at `/sellers/:id`.
 
-**Next: Phase 13** — Reviews.
+**Next: Phase 14** — Notifications.

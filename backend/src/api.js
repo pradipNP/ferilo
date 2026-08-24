@@ -8,6 +8,7 @@ import { attachFavoriteRoutes } from './favorites.js';
 import { attachOfferRoutes } from './offers.js';
 import { attachMessagingRoutes } from './messages.js';
 import { attachOrderRoutes } from './orders.js';
+import { attachReviewRoutes } from './reviews.js';
 
 // ─── Errors & response helpers ─────────────────────────────
 export class AppError extends Error {
@@ -114,6 +115,7 @@ export function createApiRouter() {
   attachOfferRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachMessagingRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachOrderRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
+  attachReviewRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
 
   return router;
 }

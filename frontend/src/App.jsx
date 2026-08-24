@@ -51,6 +51,9 @@ import {
   updateOrderStatus,
   completeOrder,
   cancelOrder,
+  fetchOrderReviews,
+  createReview,
+  fetchUserReviews,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -1812,8 +1815,14 @@ function OrderDetailPage() {
             {order.trolleyCharge > 0 && <div><dt>Trolley</dt><dd>{formatPrice(order.trolleyCharge)}</dd></div>}
             <div><dt>Total</dt><dd><strong>{formatPrice(order.totalAmount)}</strong></dd></div>
             <div><dt>Fulfillment</dt><dd>{order.fulfillmentType === 'MEETUP' ? 'Meetup' : 'Delivery'}</dd></div>
-            <div><dt>Buyer</dt><dd>{order.buyerName}</dd></div>
-            <div><dt>Seller</dt><dd>{order.sellerName}</dd></div>
+            <div>
+              <dt>Buyer</dt>
+              <dd><Link to={`/sellers/${order.buyerId}`}>{order.buyerName || 'FERILO user'}</Link></dd>
+            </div>
+            <div>
+              <dt>Seller</dt>
+              <dd><Link to={`/sellers/${order.sellerId}`}>{order.sellerName || 'FERILO user'}</Link></dd>
+            </div>
             {order.meetupLocationNote && <div><dt>Meetup note</dt><dd>{order.meetupLocationNote}</dd></div>}
             {order.deliveryAddress && (
               <div><dt>Delivery to</dt><dd>{order.deliveryAddress.street}, {order.deliveryAddress.city}</dd></div>
@@ -1840,6 +1849,7 @@ function OrderDetailPage() {
             )}
             <Link to={`/products/${order.productId}`} className="header__btn header__btn--ghost">View listing</Link>
           </div>
+          <OrderReviewSection order={order} />
           {history?.length > 0 && (
             <div className="order-history">
               <h2>Status history</h2>
@@ -1855,6 +1865,195 @@ function OrderDetailPage() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Stars({ value = 0, className = '' }) {
+  const rating = Number(value) || 0;
+  const filled = Math.round(rating);
+  return (
+    <span className={`stars ${className}`.trim()} aria-label={`${rating.toFixed(1)} out of 5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span key={n} aria-hidden="true" className={n <= filled ? 'stars__star stars__star--on' : 'stars__star'}>★</span>
+      ))}
+    </span>
+  );
+}
+
+function RatingInput({ value, onChange, disabled }) {
+  return (
+    <div className="rating-input" role="radiogroup" aria-label="Your rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={value === n}
+          aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          className={n <= value ? 'rating-input__star rating-input__star--on' : 'rating-input__star'}
+          disabled={disabled}
+          onClick={() => onChange(n)}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReviewCard({ review, showProduct = false }) {
+  return (
+    <li className="review-card">
+      <div className="review-card__head">
+        <strong>{review.reviewerName || 'FERILO user'}</strong>
+        <Stars value={review.rating} />
+      </div>
+      <p className="review-card__meta">
+        {review.reviewerRole === 'BUYER' ? 'As buyer' : 'As seller'}
+        {' · '}
+        {new Date(review.createdAt).toLocaleDateString()}
+        {showProduct && review.productTitle && (
+          <> · <Link to={`/products/${review.productId}`}>{review.productTitle}</Link></>
+        )}
+      </p>
+      {review.comment && <p className="review-card__comment">{review.comment}</p>}
+    </li>
+  );
+}
+
+function OrderReviewSection({ order }) {
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchOrderReviews(order.id)
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch(() => { if (!cancelled) setData(null); });
+    return () => { cancelled = true; };
+  }, [order.id, order.status]);
+
+  if (!data) return null;
+
+  const counterpartName = (user?.id === order.buyerId ? order.sellerName : order.buyerName) || 'the other member';
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await createReview(order.id, { rating, comment: comment.trim() || undefined });
+      setData(await fetchOrderReviews(order.id));
+      setComment('');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not submit your review.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="order-reviews">
+      <h2>Reviews</h2>
+      {order.status !== 'COMPLETED' && (
+        <p className="auth-subtitle">Reviews open once this order is marked completed.</p>
+      )}
+      {data.canReview && (
+        <form className="auth-form review-form" onSubmit={handleSubmit}>
+          <p className="auth-subtitle">How was your experience with {counterpartName}?</p>
+          <RatingInput value={rating} onChange={setRating} disabled={submitting} />
+          <label>
+            Comment (optional)
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Was the item as described? How was the handover?"
+            />
+          </label>
+          {error && <p className="auth-error form-feedback">{error}</p>}
+          <button type="submit" className="auth-submit" disabled={submitting}>
+            {submitting ? 'Submitting…' : 'Submit review'}
+          </button>
+        </form>
+      )}
+      {data.reviews.length > 0 ? (
+        <ul className="review-list">
+          {data.reviews.map((r) => <ReviewCard key={r.id} review={r} />)}
+        </ul>
+      ) : (
+        order.status === 'COMPLETED' && !data.canReview && <p className="auth-subtitle">No reviews yet.</p>
+      )}
+    </div>
+  );
+}
+
+function RatingSummary({ label, stats }) {
+  return (
+    <div className="rating-summary__item">
+      <span className="rating-summary__label">{label}</span>
+      <Stars value={stats.average} />
+      <span className="rating-summary__count">
+        {stats.count > 0 ? `${stats.average.toFixed(1)} · ${stats.count} review${stats.count === 1 ? '' : 's'}` : 'No reviews yet'}
+      </span>
+    </div>
+  );
+}
+
+function MemberProfilePage() {
+  const { id } = useParams();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    setError('');
+    fetchUserReviews(id)
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((err) => {
+        if (!cancelled) setError(err.response?.data?.error?.message || 'Member not found.');
+      });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (error) return <div className="container auth-loading">{error}</div>;
+  if (!data) return <div className="container auth-loading">Loading…</div>;
+
+  const { user, summary, reviews } = data;
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>{user.displayName || 'FERILO user'}</h1>
+        <p className="dashboard__meta">
+          {user.city ? `${user.city}${user.district ? `, ${user.district}` : ''} · ` : ''}
+          Member since {new Date(user.memberSince).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+        </p>
+        {user.verificationStatus === 'VERIFIED' && <span className="badge badge--verified">Verified</span>}
+        {user.bio && <p className="product-detail__desc">{user.bio}</p>}
+        <div className="rating-summary">
+          <RatingSummary label="As seller" stats={summary.asSeller} />
+          <RatingSummary label="As buyer" stats={summary.asBuyer} />
+        </div>
+        <p className="dashboard__meta">
+          {user.totalSales} completed sale{user.totalSales === 1 ? '' : 's'} · {user.totalPurchases} purchase{user.totalPurchases === 1 ? '' : 's'}
+        </p>
+        <h2>Reviews</h2>
+        {reviews.length === 0 ? (
+          <p className="auth-subtitle">No reviews yet.</p>
+        ) : (
+          <ul className="review-list">
+            {reviews.map((r) => <ReviewCard key={r.id} review={r} showProduct />)}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -1905,7 +2104,22 @@ function ProductDetailPage() {
             {product.isNegotiable && <div><dt>Price</dt><dd>Negotiable</dd></div>}
             <div><dt>Delivery</dt><dd>{product.deliveryEligible ? 'Available' : 'Meetup only'}</dd></div>
           </dl>
-          <p className="auth-subtitle">Seller: {product.seller?.displayName || 'Unknown'}</p>
+          <p className="auth-subtitle product-detail__seller">
+            Seller:{' '}
+            {product.seller?.id ? (
+              <Link to={`/sellers/${product.seller.id}`}>{product.seller.displayName || 'FERILO user'}</Link>
+            ) : (
+              'Unknown'
+            )}
+            {Number(product.seller?.sellerRatingAvg) > 0 && (
+              <>
+                {' '}
+                <Stars value={product.seller.sellerRatingAvg} />
+                {' '}
+                {Number(product.seller.sellerRatingAvg).toFixed(1)}
+              </>
+            )}
+          </p>
           <ContactSellerButton product={product} />
           <MakeOfferPanel product={product} />
           <PlaceOrderPanel product={product} offerId={offerId} />
@@ -2282,6 +2496,7 @@ export default function App() {
             <Route path="/browse" element={<BrowsePage />} />
             <Route path="/categories/:slug" element={<CategoryPage />} />
             <Route path="/products/:id" element={<ProductDetailPage />} />
+            <Route path="/sellers/:id" element={<MemberProfilePage />} />
             <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
             <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
             <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

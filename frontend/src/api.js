@@ -307,3 +307,18 @@ export async function cancelOrder(id, reason) {
   const { data } = await api.patch(`/orders/${id}/cancel`, { reason });
   return data.data;
 }
+
+export async function fetchOrderReviews(orderId) {
+  const { data } = await api.get(`/orders/${orderId}/reviews`);
+  return data.data;
+}
+
+export async function createReview(orderId, payload) {
+  const { data } = await api.post(`/orders/${orderId}/reviews`, payload);
+  return data.data;
+}
+
+export async function fetchUserReviews(userId) {
+  const { data } = await api.get(`/users/${userId}/reviews`);
+  return data.data;
+}

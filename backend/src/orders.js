@@ -500,6 +500,14 @@ export function attachOrderRoutes(router, { asyncHandler, validate, sendSuccess,
           `UPDATE products SET status = 'SOLD', updated_at = NOW() WHERE id = $1`,
           [order.productId],
         );
+        await client.query(
+          `UPDATE user_profiles SET total_sales = total_sales + 1, updated_at = NOW() WHERE user_id = $1`,
+          [order.sellerId],
+        );
+        await client.query(
+          `UPDATE user_profiles SET total_purchases = total_purchases + 1, updated_at = NOW() WHERE user_id = $1`,
+          [order.buyerId],
+        );
         await recordStatusChange(client, order.id, order.status, 'COMPLETED', req.user.id, 'Order completed');
         await client.query('COMMIT');
         sendSuccess(res, await loadOrder(order.id, req.user.id));
