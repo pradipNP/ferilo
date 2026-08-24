@@ -7,6 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "lint": "eslint src",
+    "test": "node --test src/__tests__/**/*.test.js",
     "db:migrate": "node src/db.js migrate",
     "db:seed": "node src/db.js seed",
     "db:seed-products": "node src/seed-products.js"

@@ -203,6 +203,9 @@ button { cursor: pointer; }
 .badge--order-delivered { background: #dcfce7; color: #166534; }
 .badge--order-completed { background: #dcfce7; color: #166534; }
 .badge--order-cancelled { background: #f1f5f9; color: #475569; }
+.report-panel { margin-top: var(--space-lg); }
+.report-panel h3 { margin: 0 0 var(--space-sm); font-size: 1rem; color: var(--color-primary); }
+.admin-nav { margin-bottom: var(--space-lg); }
 .notif-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 1.125rem; line-height: 1; flex-shrink: 0; }
 .notif-bell:hover { background: var(--color-bg); }
 .notif-bell__badge { position: absolute; top: 0; right: 0; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 0.6875rem; font-weight: 700; line-height: 18px; text-align: center; }

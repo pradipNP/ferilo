@@ -10,6 +10,7 @@
     "dev:frontend": "npm run dev -w frontend",
     "build": "npm run build -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "test": "npm run test -w backend",
     "format": "prettier --write \"**/*.{js,jsx,json,md,css,html}\"",
     "db:migrate": "npm run db:migrate -w backend",
     "db:seed": "npm run db:seed -w backend",

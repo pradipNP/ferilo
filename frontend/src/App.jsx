@@ -58,6 +58,16 @@ import {
   fetchUnreadNotificationCount,
   markNotificationRead,
   markAllNotificationsRead,
+  createReport,
+  fetchMyReports,
+  fetchAdminStats,
+  fetchAdminUsers,
+  updateAdminUserStatus,
+  fetchAdminProducts,
+  updateAdminProductStatus,
+  fetchAdminOrders,
+  fetchAdminReports,
+  updateAdminReport,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -672,6 +682,14 @@ function DashboardPage() {
             <h2>Orders</h2>
             <p>Track purchases and sales.</p>
           </Link>
+          <Link to="/app/notifications" className="trust__card dashboard__link">
+            <h2>Notifications</h2>
+            <p>Offers, orders, and review updates.</p>
+          </Link>
+          <Link to="/app/reports" className="trust__card dashboard__link">
+            <h2>My Reports</h2>
+            <p>Track reports you submitted.</p>
+          </Link>
           <Link to="/app/listings/new" className="trust__card dashboard__link">
             <h2>Post an Ad</h2>
             <p>Sell something — verification required.</p>
@@ -685,10 +703,20 @@ function DashboardPage() {
             <p>Required to publish listings.</p>
           </Link>
           {user.role === 'ADMIN' && (
-            <Link to="/admin/verifications" className="trust__card dashboard__link">
-              <h2>Admin: Verifications</h2>
-              <p>Review pending identity requests.</p>
-            </Link>
+            <>
+              <Link to="/admin" className="trust__card dashboard__link">
+                <h2>Admin Dashboard</h2>
+                <p>Overview of users, listings, orders and reports.</p>
+              </Link>
+              <Link to="/admin/verifications" className="trust__card dashboard__link">
+                <h2>Admin: Verifications</h2>
+                <p>Review pending identity requests.</p>
+              </Link>
+              <Link to="/admin/reports" className="trust__card dashboard__link">
+                <h2>Admin: Reports</h2>
+                <p>Moderate community reports.</p>
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -855,6 +883,7 @@ function AdminVerificationsPage() {
   return (
     <div className="dashboard">
       <div className="container">
+        <AdminNav />
         <h1>Verification Queue</h1>
         {error && <p className="auth-error">{error}</p>}
         {loading ? (
@@ -877,6 +906,417 @@ function AdminVerificationsPage() {
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+const REPORT_CATEGORIES = [
+  { value: 'SPAM', label: 'Spam' },
+  { value: 'SCAM', label: 'Scam / fraud' },
+  { value: 'INAPPROPRIATE', label: 'Inappropriate content' },
+  { value: 'COUNTERFEIT', label: 'Counterfeit item' },
+  { value: 'PROHIBITED_ITEM', label: 'Prohibited item' },
+  { value: 'HARASSMENT', label: 'Harassment' },
+  { value: 'MISLEADING', label: 'Misleading listing' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+function ReportPanel({ targetType, targetId, label = 'Report', hideForUserId }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState('SPAM');
+  const [description, setDescription] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  if (user && hideForUserId && user.id === hideForUserId) return null;
+
+  if (!user) {
+    return <p className="auth-subtitle"><Link to="/login">Log in</Link> to report this.</p>;
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      await createReport({ targetType, targetId, category, description });
+      setSuccess('Report submitted. Our team will review it.');
+      setDescription('');
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not submit report.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="report-panel">
+      {!open ? (
+        <button type="button" className="header__btn header__btn--ghost" onClick={() => setOpen(true)}>
+          {label}
+        </button>
+      ) : (
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <h3>Report {targetType.toLowerCase()}</h3>
+          <label>
+            Reason
+            <select value={category} onChange={(e) => setCategory(e.target.value)} required>
+              {REPORT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </label>
+          <label>
+            Details
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} minLength={10} maxLength={2000} required placeholder="What happened? Include enough detail for review." />
+          </label>
+          {error && <p className="auth-error form-feedback">{error}</p>}
+          <div className="offer-actions">
+            <button type="submit" className="header__btn header__btn--primary" disabled={busy}>{busy ? 'Sending…' : 'Submit report'}</button>
+            <button type="button" className="header__btn header__btn--ghost" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </form>
+      )}
+      {success && <p className="auth-success form-feedback">{success}</p>}
+    </div>
+  );
+}
+
+function MyReportsPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchMyReports()
+      .then(setItems)
+      .catch(() => setError('Failed to load reports.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>My Reports</h1>
+        <p className="dashboard__meta">Reports you submitted for moderation.</p>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? <p className="auth-loading">Loading…</p> : items.length === 0 ? (
+          <p className="auth-subtitle">You have not submitted any reports yet.</p>
+        ) : (
+          <ul className="admin-list">
+            {items.map((r) => (
+              <li key={r.id} className="admin-list__item">
+                <div>
+                  <strong>{r.category.replace(/_/g, ' ')}</strong>
+                  <p>{r.targetType} · {r.status} · {new Date(r.createdAt).toLocaleString()}</p>
+                  <p>{r.description}</p>
+                  {r.adminNotes && <p className="auth-subtitle">Admin note: {r.adminNotes}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminNav() {
+  const links = [
+    { to: '/admin', label: 'Overview' },
+    { to: '/admin/verifications', label: 'Verifications' },
+    { to: '/admin/reports', label: 'Reports' },
+    { to: '/admin/users', label: 'Users' },
+    { to: '/admin/listings', label: 'Listings' },
+    { to: '/admin/orders', label: 'Orders' },
+  ];
+  return (
+    <nav className="offers-tabs admin-nav" aria-label="Admin">
+      {links.map((l) => (
+        <Link key={l.to} to={l.to} className="offers-tabs__btn">{l.label}</Link>
+      ))}
+    </nav>
+  );
+}
+
+function AdminDashboardPage() {
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchAdminStats()
+      .then(setStats)
+      .catch(() => setError('Failed to load admin stats.'));
+  }, []);
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <AdminNav />
+        <h1>Admin Dashboard</h1>
+        {error && <p className="auth-error">{error}</p>}
+        {!stats ? <p className="auth-loading">Loading…</p> : (
+          <div className="dashboard__cards">
+            <div className="trust__card"><h2>Users</h2><p>{stats.users.active} active · {stats.users.verified} verified · {stats.users.suspended} suspended</p></div>
+            <div className="trust__card"><h2>Listings</h2><p>{stats.products.active} active · {stats.products.removed} removed</p></div>
+            <div className="trust__card"><h2>Orders</h2><p>{stats.orders.pending} pending · {stats.orders.completed} completed</p></div>
+            <div className="trust__card"><h2>Moderation</h2><p>{stats.reports.open} open reports · {stats.verifications.pending} verifications</p></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminReportsPage() {
+  const [status, setStatus] = useState('OPEN');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAdminReports(status)
+      .then(setItems)
+      .catch(() => setError('Failed to load reports.'))
+      .finally(() => setLoading(false));
+  }, [status]);
+
+  const act = async (id, nextStatus) => {
+    const adminNotes = window.prompt('Admin notes (optional):') || '';
+    try {
+      await updateAdminReport(id, { status: nextStatus, adminNotes: adminNotes || undefined });
+      setLoading(true);
+      fetchAdminReports(status)
+        .then(setItems)
+        .catch(() => setError('Failed to load reports.'))
+        .finally(() => setLoading(false));
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Update failed.');
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <AdminNav />
+        <h1>Reports</h1>
+        <div className="offers-tabs">
+          {['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'DISMISSED', 'ALL'].map((s) => (
+            <button key={s} type="button" className={status === s ? 'offers-tabs__btn offers-tabs__btn--active' : 'offers-tabs__btn'} onClick={() => setStatus(s)}>{s.replace('_', ' ')}</button>
+          ))}
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? <p className="auth-loading">Loading…</p> : items.length === 0 ? (
+          <p className="auth-subtitle">No reports in this view.</p>
+        ) : (
+          <ul className="admin-list">
+            {items.map((r) => (
+              <li key={r.id} className="admin-list__item">
+                <div>
+                  <strong>{r.category}</strong> · {r.targetType}
+                  <p>From {r.reporterName || r.reporterEmail} · {r.status} · {new Date(r.createdAt).toLocaleString()}</p>
+                  <p>{r.description}</p>
+                  <p className="auth-subtitle">Target: {r.targetId}</p>
+                </div>
+                <div className="admin-list__actions">
+                  {r.status === 'OPEN' && <button type="button" className="header__btn header__btn--ghost" onClick={() => act(r.id, 'UNDER_REVIEW')}>Review</button>}
+                  {['OPEN', 'UNDER_REVIEW'].includes(r.status) && (
+                    <>
+                      <button type="button" className="header__btn header__btn--primary" onClick={() => act(r.id, 'RESOLVED')}>Resolve</button>
+                      <button type="button" className="header__btn header__btn--ghost" onClick={() => act(r.id, 'DISMISSED')}>Dismiss</button>
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminUsersPage() {
+  const [q, setQ] = useState('');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAdminUsers('')
+      .then(setItems)
+      .catch(() => setError('Failed to load users.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const load = (query = q) => {
+    setLoading(true);
+    fetchAdminUsers(query)
+      .then(setItems)
+      .catch(() => setError('Failed to load users.'))
+      .finally(() => setLoading(false));
+  };
+
+  const toggle = async (user) => {
+    const next = user.accountStatus === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
+    const reason = next === 'SUSPENDED' ? (window.prompt('Suspension reason:') || '') : '';
+    if (next === 'SUSPENDED' && reason.length < 3) return;
+    try {
+      await updateAdminUserStatus(user.id, { accountStatus: next, reason: reason || undefined });
+      load();
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Update failed.');
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <AdminNav />
+        <h1>Users</h1>
+        <form className="browse-filters__form" style={{ maxWidth: 420, marginBottom: '1rem' }} onSubmit={(e) => { e.preventDefault(); load(q); }}>
+          <label>Search<input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Email or name" /></label>
+          <button type="submit" className="header__btn header__btn--primary">Search</button>
+        </form>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? <p className="auth-loading">Loading…</p> : (
+          <ul className="admin-list">
+            {items.map((u) => (
+              <li key={u.id} className="admin-list__item">
+                <div>
+                  <strong>{u.displayName || u.email}</strong>
+                  <p>{u.email} · {u.role} · {u.verificationStatus} · {u.accountStatus}</p>
+                  <p>{u.city || '—'} · sales {u.totalSales ?? 0} · purchases {u.totalPurchases ?? 0}</p>
+                </div>
+                {u.role !== 'ADMIN' && (
+                  <div className="admin-list__actions">
+                    <button type="button" className="header__btn header__btn--ghost" onClick={() => toggle(u)}>
+                      {u.accountStatus === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminListingsPage() {
+  const [status, setStatus] = useState('ACTIVE');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAdminProducts(status)
+      .then(setItems)
+      .catch(() => setError('Failed to load listings.'))
+      .finally(() => setLoading(false));
+  }, [status]);
+
+  const remove = async (id) => {
+    const reason = window.prompt('Removal reason (min 3 characters):');
+    if (!reason || reason.length < 3) return;
+    try {
+      await updateAdminProductStatus(id, { status: 'REMOVED', reason });
+      setLoading(true);
+      fetchAdminProducts(status)
+        .then(setItems)
+        .catch(() => setError('Failed to load listings.'))
+        .finally(() => setLoading(false));
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Update failed.');
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <AdminNav />
+        <h1>Listings</h1>
+        <div className="offers-tabs">
+          {['ACTIVE', 'REMOVED', 'REJECTED', 'ALL'].map((s) => (
+            <button key={s} type="button" className={status === s ? 'offers-tabs__btn offers-tabs__btn--active' : 'offers-tabs__btn'} onClick={() => setStatus(s)}>{s}</button>
+          ))}
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? <p className="auth-loading">Loading…</p> : items.length === 0 ? (
+          <p className="auth-subtitle">No listings.</p>
+        ) : (
+          <ul className="admin-list">
+            {items.map((p) => (
+              <li key={p.id} className="admin-list__item">
+                <div>
+                  <Link to={`/products/${p.id}`} className="offer-card__title">{p.title}</Link>
+                  <p>{formatPrice(p.price)} · {p.status} · {p.city} · {p.sellerName || p.sellerEmail}</p>
+                </div>
+                {p.status !== 'REMOVED' && (
+                  <div className="admin-list__actions">
+                    <button type="button" className="header__btn header__btn--ghost" onClick={() => remove(p.id)}>Remove</button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminOrdersPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchAdminOrders()
+      .then(setItems)
+      .catch(() => setError('Failed to load orders.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <AdminNav />
+        <h1>Orders</h1>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? <p className="auth-loading">Loading…</p> : items.length === 0 ? (
+          <p className="auth-subtitle">No orders yet.</p>
+        ) : (
+          <ul className="admin-list">
+            {items.map((o) => (
+              <li key={o.id} className="admin-list__item">
+                <div>
+                  <strong>{o.orderNumber}</strong>
+                  <p>{o.productTitle} · {o.status} · {o.fulfillmentType} · {formatPrice(o.totalAmount)}</p>
+                  <p>{o.buyerName} → {o.sellerName} · {new Date(o.createdAt).toLocaleString()}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StaticPage({ title, children }) {
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>{title}</h1>
+        <div className="product-detail__desc">{children}</div>
       </div>
     </div>
   );
@@ -2203,6 +2643,7 @@ function MemberProfilePage() {
         <p className="dashboard__meta">
           {user.totalSales} completed sale{user.totalSales === 1 ? '' : 's'} · {user.totalPurchases} purchase{user.totalPurchases === 1 ? '' : 's'}
         </p>
+        <ReportPanel targetType="USER" targetId={user.id} label="Report member" hideForUserId={user.id} />
         <h2>Reviews</h2>
         {reviews.length === 0 ? (
           <p className="auth-subtitle">No reviews yet.</p>
@@ -2280,6 +2721,7 @@ function ProductDetailPage() {
           <ContactSellerButton product={product} />
           <MakeOfferPanel product={product} />
           <PlaceOrderPanel product={product} offerId={offerId} />
+          <ReportPanel targetType="PRODUCT" targetId={product.id} label="Report listing" hideForUserId={product.seller?.id} />
         </div>
       </div>
     </div>
@@ -2668,9 +3110,25 @@ export default function App() {
               <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
               <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
               <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
+              <Route path="/app/reports" element={<ProtectedRoute><MyReportsPage /></ProtectedRoute>} />
               <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
               <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
+              <Route path="/admin/reports" element={<AdminRoute><AdminReportsPage /></AdminRoute>} />
+              <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+              <Route path="/admin/listings" element={<AdminRoute><AdminListingsPage /></AdminRoute>} />
+              <Route path="/admin/orders" element={<AdminRoute><AdminOrdersPage /></AdminRoute>} />
+              <Route path="/about" element={<StaticPage title="About FERILO"><p>FERILO is a verified peer-to-peer marketplace for second-hand goods in Nepal. Buy. Sell. Give it another life.</p></StaticPage>} />
+              <Route path="/contact" element={<StaticPage title="Contact Us"><p>Email us at support@ferilo.local for help with accounts, listings, or orders.</p></StaticPage>} />
+              <Route path="/help" element={<StaticPage title="Help Center"><p>Browse safely, meet in public places, and verify sellers before paying. Use Reports if something looks wrong.</p></StaticPage>} />
+              <Route path="/help/how-to-buy" element={<StaticPage title="How to Buy"><p>Search or browse, message the seller, make an offer if negotiable, then place a meetup or delivery order.</p></StaticPage>} />
+              <Route path="/help/how-to-sell" element={<StaticPage title="How to Sell"><p>Verify your identity, create a listing with clear photos, confirm orders promptly, and complete the handover.</p></StaticPage>} />
+              <Route path="/help/safety" element={<StaticPage title="Safety Tips"><p>Prefer verified sellers, avoid off-platform payments, and report scams from the listing or member profile.</p></StaticPage>} />
+              <Route path="/blog" element={<StaticPage title="Blog"><p>Tips and marketplace news will appear here soon.</p></StaticPage>} />
+              <Route path="/terms" element={<StaticPage title="Terms and Conditions"><p>By using FERILO you agree to trade honestly, follow local laws, and accept our moderation decisions.</p></StaticPage>} />
+              <Route path="/privacy" element={<StaticPage title="Privacy Policy"><p>We store account, listing, and order data to run the marketplace. Identity documents stay private and are used only for verification.</p></StaticPage>} />
+              <Route path="/policies/prohibited-items" element={<StaticPage title="Prohibited & Restricted Items"><p>Weapons, drugs, stolen goods, and other illegal items are banned. Listings that break the rules may be removed.</p></StaticPage>} />
             </Route>
           </Routes>
         </FavoritesProvider>

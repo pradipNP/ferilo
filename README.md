@@ -4,15 +4,16 @@
 
 FERILO is a verified peer-to-peer second-hand marketplace built for Nepal. Registered users can buy and sell pre-loved items with identity verification, transparent delivery pricing, offers/negotiation, and admin moderation.
 
-## Features (planned)
+## Features
 
-- User registration & JWT authentication
-- Identity verification workflow (secure document storage)
+- User registration & JWT authentication (access + HttpOnly refresh)
+- Identity verification workflow with admin review
 - Product listings with images, categories, search & filters
-- Favorites, offers, messaging, orders (meetup & delivery)
-- Delivery charge calculator (distance + trolley/large-item fees)
-- Reviews, reputation, notifications, reports
-- Admin dashboard & audit logs
+- Favorites, offers/negotiation, messaging, orders (meetup & delivery)
+- Delivery charge calculator (city distances + trolley fees)
+- Reviews & reputation, in-app notifications
+- Reports & admin moderation (users, listings, reports, orders)
+- Rate limiting, Helmet, Zod validation, audit logs
 
 ## Tech stack
 
@@ -21,7 +22,7 @@ FERILO is a verified peer-to-peer second-hand marketplace built for Nepal. Regis
 | Frontend | React, JavaScript, Vite, React Router, Axios, CSS |
 | Backend | Node.js, Express, JavaScript, JWT, Zod |
 | Database | PostgreSQL |
-| Testing | Jest, Supertest, Vitest |
+| Testing | Node.js built-in test runner |
 
 ## Project structure
 
@@ -93,7 +94,7 @@ See [`.env.example`](./.env.example) for all variables. Never commit `.env`.
 
 ## Development phases
 
-Development proceeds in incremental phases with a stable Git commit after each. See [docs/development.md](./docs/development.md).
+MVP feature set is complete. See [docs/development.md](./docs/development.md) and [docs/deployment.md](./docs/deployment.md).
 
 ## License
 

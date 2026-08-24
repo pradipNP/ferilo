@@ -10,6 +10,9 @@ import { attachMessagingRoutes } from './messages.js';
 import { attachOrderRoutes } from './orders.js';
 import { attachReviewRoutes } from './reviews.js';
 import { attachNotificationRoutes } from './notifications.js';
+import { attachReportRoutes } from './reports.js';
+import { attachAdminRoutes } from './admin.js';
+import { createApiRateLimiter, createAuthRateLimiter } from './rateLimit.js';
 
 // ─── Errors & response helpers ─────────────────────────────
 export class AppError extends Error {
@@ -50,6 +53,12 @@ export function validate(schema) {
 // ─── v1 routes ───────────────────────────────────────────────
 export function createApiRouter() {
   const router = express.Router();
+  const apiLimiter = createApiRateLimiter();
+  const authLimiter = createAuthRateLimiter();
+
+  router.use(apiLimiter);
+  router.use('/auth/login', authLimiter);
+  router.use('/auth/register', authLimiter);
 
   router.get(
     '/health',
@@ -118,6 +127,8 @@ export function createApiRouter() {
   attachOrderRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachReviewRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachNotificationRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
+  attachReportRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
+  attachAdminRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
 
   return router;
 }

@@ -19,7 +19,7 @@
 
 - Parameterized SQL only
 - Zod validation on all endpoints
-- Helmet, CORS whitelist, rate limiting
+- Helmet, CORS whitelist, rate limiting (API + stricter auth endpoints)
 - No stack traces in production
 - Sanitize user-generated content (messages, reviews)
 

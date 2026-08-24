@@ -342,3 +342,53 @@ export async function markAllNotificationsRead() {
   const { data } = await api.patch('/notifications/read-all');
   return data.data;
 }
+
+export async function createReport(payload) {
+  const { data } = await api.post('/reports', payload);
+  return data.data;
+}
+
+export async function fetchMyReports() {
+  const { data } = await api.get('/reports/mine');
+  return data.data;
+}
+
+export async function fetchAdminStats() {
+  const { data } = await api.get('/admin/stats');
+  return data.data;
+}
+
+export async function fetchAdminUsers(q) {
+  const { data } = await api.get('/admin/users', { params: q ? { q } : {} });
+  return data.data;
+}
+
+export async function updateAdminUserStatus(id, payload) {
+  const { data } = await api.patch(`/admin/users/${id}/status`, payload);
+  return data.data;
+}
+
+export async function fetchAdminProducts(status = 'ACTIVE') {
+  const { data } = await api.get('/admin/products', { params: { status } });
+  return data.data;
+}
+
+export async function updateAdminProductStatus(id, payload) {
+  const { data } = await api.patch(`/admin/products/${id}/status`, payload);
+  return data.data;
+}
+
+export async function fetchAdminOrders() {
+  const { data } = await api.get('/admin/orders');
+  return data.data;
+}
+
+export async function fetchAdminReports(status = 'OPEN') {
+  const { data } = await api.get('/admin/reports', { params: { status } });
+  return data.data;
+}
+
+export async function updateAdminReport(id, payload) {
+  const { data } = await api.patch(`/admin/reports/${id}`, payload);
+  return data.data;
+}
