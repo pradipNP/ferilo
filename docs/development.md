@@ -39,6 +39,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 9 complete** — Favorites: save/unsave listings, favorites page, heart buttons on browse and detail.
+**Phase 10 complete** — Offers: make/counter/accept/reject/cancel negotiation on negotiable listings.
 
-**Next: Phase 10** — Offers and negotiation.
+**Next: Phase 11** — Messaging.

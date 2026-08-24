@@ -5,6 +5,7 @@ import { attachAuthRoutes } from './auth.js';
 import { attachProfileRoutes, multerErrorHandler } from './profile.js';
 import { attachProductRoutes } from './products.js';
 import { attachFavoriteRoutes } from './favorites.js';
+import { attachOfferRoutes } from './offers.js';
 
 // ─── Errors & response helpers ─────────────────────────────
 export class AppError extends Error {
@@ -108,6 +109,7 @@ export function createApiRouter() {
   attachProfileRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachProductRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachFavoriteRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
+  attachOfferRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
 
   return router;
 }

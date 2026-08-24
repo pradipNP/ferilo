@@ -202,3 +202,38 @@ export async function removeFavorite(productId) {
   const { data } = await api.delete(`/favorites/${productId}`);
   return data.data;
 }
+
+export async function fetchMyOffers() {
+  const { data } = await api.get('/offers/mine');
+  return data.data;
+}
+
+export async function fetchIncomingOffers() {
+  const { data } = await api.get('/offers/incoming');
+  return data.data;
+}
+
+export async function createOffer(payload) {
+  const { data } = await api.post('/offers', payload);
+  return data.data;
+}
+
+export async function acceptOffer(id) {
+  const { data } = await api.patch(`/offers/${id}/accept`);
+  return data.data;
+}
+
+export async function rejectOffer(id) {
+  const { data } = await api.patch(`/offers/${id}/reject`);
+  return data.data;
+}
+
+export async function counterOffer(id, payload) {
+  const { data } = await api.patch(`/offers/${id}/counter`, payload);
+  return data.data;
+}
+
+export async function cancelOffer(id) {
+  const { data } = await api.patch(`/offers/${id}/cancel`);
+  return data.data;
+}

@@ -30,6 +30,13 @@ import {
   fetchFavorites,
   addFavorite,
   removeFavorite,
+  fetchMyOffers,
+  fetchIncomingOffers,
+  createOffer,
+  acceptOffer,
+  rejectOffer,
+  counterOffer,
+  cancelOffer,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -175,6 +182,15 @@ const SIZE_TIERS = [
   { value: 'EXTRA_LARGE', label: 'Extra Large' },
 ];
 
+const OFFER_STATUS_LABELS = {
+  PENDING: 'Pending',
+  ACCEPTED: 'Accepted',
+  REJECTED: 'Rejected',
+  COUNTERED: 'Countered',
+  EXPIRED: 'Expired',
+  CANCELLED: 'Cancelled',
+};
+
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'oldest', label: 'Oldest first' },
@@ -318,6 +334,7 @@ function Header() {
         <nav className="header__nav" aria-label="Main navigation">
           <Link to="/browse" className="header__nav-link">Browse</Link>
           {user && <Link to="/app/favorites" className="header__nav-link">Favorites</Link>}
+          {user && <Link to="/app/offers" className="header__nav-link">Offers</Link>}
           <Link to="/help" className="header__nav-link">Help</Link>
         </nav>
         <div className="header__actions">
@@ -555,6 +572,10 @@ function DashboardPage() {
           <Link to="/app/favorites" className="trust__card dashboard__link">
             <h2>Saved Listings</h2>
             <p>View items you have saved for later.</p>
+          </Link>
+          <Link to="/app/offers" className="trust__card dashboard__link">
+            <h2>My Offers</h2>
+            <p>Track offers you sent and received.</p>
           </Link>
           <Link to="/app/listings/new" className="trust__card dashboard__link">
             <h2>Post an Ad</h2>
@@ -1039,6 +1060,229 @@ function CategoryPage() {
   );
 }
 
+function MakeOfferPanel({ product }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [amount, setAmount] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!user) {
+    return (
+      <div className="offer-panel">
+        <h2>Make an offer</h2>
+        <p className="auth-subtitle"><Link to="/login">Log in</Link> to negotiate on this listing.</p>
+      </div>
+    );
+  }
+
+  if (user.id === product.seller?.id) return null;
+
+  if (!product.isNegotiable) {
+    return (
+      <div className="offer-panel">
+        <h2>Fixed price</h2>
+        <p className="auth-subtitle">This listing does not accept offers.</p>
+      </div>
+    );
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSubmitting(true);
+    try {
+      await createOffer({
+        productId: product.id,
+        amount: Number(amount),
+        message: message.trim() || undefined,
+      });
+      setSuccess('Offer sent! The seller will respond in your Offers page.');
+      setAmount('');
+      setMessage('');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to send offer.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="offer-panel">
+      <h2>Make an offer</h2>
+      <p className="auth-subtitle">Listed at {formatPrice(product.price)} · negotiable</p>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label>
+          Your offer (NPR)
+          <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+        </label>
+        <label>
+          Message (optional)
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={1000} placeholder="Add a note for the seller…" />
+        </label>
+        {success && <p className="auth-success form-feedback">{success}</p>}
+        {error && <p className="auth-error form-feedback">{error}</p>}
+        <button type="submit" className="auth-submit" disabled={submitting}>
+          {submitting ? 'Sending…' : 'Send offer'}
+        </button>
+        <button type="button" className="header__btn header__btn--ghost" onClick={() => navigate('/app/offers')}>
+          View my offers
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function OfferActions({ offer, role, onUpdate }) {
+  const { user } = useAuth();
+  const [counterAmount, setCounterAmount] = useState('');
+  const [showCounter, setShowCounter] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  if (offer.status !== 'PENDING') return null;
+
+  const isBuyer = user?.id === offer.buyerId;
+  const isSeller = user?.id === offer.sellerId;
+  const sellerInitial = isSeller && !offer.parentOfferId;
+  const buyerCounter = isBuyer && offer.parentOfferId;
+
+  const run = async (action) => {
+    setBusy(true);
+    try {
+      await action();
+      onUpdate();
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Action failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCounter = async (e) => {
+    e.preventDefault();
+    if (!counterAmount) return;
+    await run(() => counterOffer(offer.id, { amount: Number(counterAmount) }));
+    setShowCounter(false);
+    setCounterAmount('');
+  };
+
+  return (
+    <div className="offer-actions">
+      {role === 'buyer' && isBuyer && !offer.parentOfferId && (
+        <button type="button" className="header__btn header__btn--ghost" disabled={busy} onClick={() => run(() => cancelOffer(offer.id))}>
+          Cancel
+        </button>
+      )}
+      {sellerInitial && (
+        <>
+          <button type="button" className="header__btn header__btn--primary" disabled={busy} onClick={() => run(() => acceptOffer(offer.id))}>Accept</button>
+          <button type="button" className="header__btn header__btn--ghost" disabled={busy} onClick={() => run(() => rejectOffer(offer.id))}>Reject</button>
+          <button type="button" className="header__btn header__btn--ghost" disabled={busy} onClick={() => setShowCounter(!showCounter)}>Counter</button>
+        </>
+      )}
+      {buyerCounter && (
+        <>
+          <button type="button" className="header__btn header__btn--primary" disabled={busy} onClick={() => run(() => acceptOffer(offer.id))}>Accept counter</button>
+          <button type="button" className="header__btn header__btn--ghost" disabled={busy} onClick={() => run(() => rejectOffer(offer.id))}>Reject</button>
+          <button type="button" className="header__btn header__btn--ghost" disabled={busy} onClick={() => setShowCounter(!showCounter)}>Counter</button>
+        </>
+      )}
+      {showCounter && (sellerInitial || buyerCounter) && (
+        <form className="offer-actions__counter" onSubmit={handleCounter}>
+          <input type="number" min="1" placeholder="Counter amount" value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} required />
+          <button type="submit" className="header__btn header__btn--primary" disabled={busy}>Send counter</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function OfferCard({ offer, role, onUpdate }) {
+  return (
+    <li className="offer-card">
+      <div className="offer-card__main">
+        <div>
+          <Link to={`/products/${offer.productId}`} className="offer-card__title">{offer.productTitle}</Link>
+          <p className="offer-card__meta">
+            {role === 'buyer' ? `Seller: ${offer.sellerName || 'Unknown'}` : `Buyer: ${offer.buyerName || 'Unknown'}`}
+            {' · '}Listed {formatPrice(offer.productPrice)}
+          </p>
+          {offer.message && <p className="offer-card__message">&ldquo;{offer.message}&rdquo;</p>}
+          <p className="offer-card__date">{new Date(offer.createdAt).toLocaleString()}</p>
+        </div>
+        <div className="offer-card__side">
+          <p className="offer-card__amount">{formatPrice(offer.amount)}</p>
+          <span className={`badge badge--offer badge--offer-${offer.status.toLowerCase()}`}>
+            {OFFER_STATUS_LABELS[offer.status] || offer.status}
+          </span>
+        </div>
+      </div>
+      <OfferActions offer={offer} role={role} onUpdate={onUpdate} />
+    </li>
+  );
+}
+
+function OffersPage() {
+  const [tab, setTab] = useState('mine');
+  const [offers, setOffers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    const fetcher = tab === 'mine' ? fetchMyOffers : fetchIncomingOffers;
+    fetcher()
+      .then(setOffers)
+      .catch(() => setError('Failed to load offers.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    const fetcher = tab === 'mine' ? fetchMyOffers : fetchIncomingOffers;
+    fetcher()
+      .then(setOffers)
+      .catch(() => setError('Failed to load offers.'))
+      .finally(() => setLoading(false));
+  }, [tab]);
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <h1>Offers</h1>
+        <p className="dashboard__meta">Negotiate prices with buyers and sellers.</p>
+        <div className="offers-tabs">
+          <button type="button" className={tab === 'mine' ? 'offers-tabs__btn offers-tabs__btn--active' : 'offers-tabs__btn'} onClick={() => setTab('mine')}>
+            Offers I sent
+          </button>
+          <button type="button" className={tab === 'incoming' ? 'offers-tabs__btn offers-tabs__btn--active' : 'offers-tabs__btn'} onClick={() => setTab('incoming')}>
+            Offers received
+          </button>
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : offers.length === 0 ? (
+          <p className="auth-subtitle">
+            {tab === 'mine' ? 'No offers sent yet. Browse listings and make an offer on negotiable items.' : 'No incoming offers yet.'}
+          </p>
+        ) : (
+          <ul className="offer-list">
+            {offers.map((offer) => (
+              <OfferCard key={offer.id} offer={offer} role={tab === 'mine' ? 'buyer' : 'seller'} onUpdate={load} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProductDetailPage() {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
@@ -1083,6 +1327,7 @@ function ProductDetailPage() {
             <div><dt>Delivery</dt><dd>{product.deliveryEligible ? 'Available' : 'Meetup only'}</dd></div>
           </dl>
           <p className="auth-subtitle">Seller: {product.seller?.displayName || 'Unknown'}</p>
+          <MakeOfferPanel product={product} />
         </div>
       </div>
     </div>
@@ -1460,6 +1705,7 @@ export default function App() {
             <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
             <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/app/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+            <Route path="/app/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
             <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
             <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
             <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
