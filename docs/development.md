@@ -38,6 +38,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 3 complete** — Express foundation: `/api/v1`, error handling, Zod validation, categories read endpoints.
+**Phase 4 complete** — JWT auth: register, login, logout, refresh, `/auth/me`.
 
-**Next: Phase 4** — JWT authentication.
+**Next: Phase 5** — React frontend foundation polish (or Phase 6 profile + verification).

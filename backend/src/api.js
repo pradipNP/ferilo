@@ -1,6 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { pool, testConnection } from './db.js';
+import { attachAuthRoutes } from './auth.js';
 
 // ─── Errors & response helpers ─────────────────────────────
 export class AppError extends Error {
@@ -99,6 +100,8 @@ export function createApiRouter() {
       sendSuccess(res, rows[0]);
     }),
   );
+
+  attachAuthRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
 
   return router;
 }

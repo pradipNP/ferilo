@@ -22,7 +22,15 @@ Base path: `/api/v1`
 | GET | `/categories` | Public | List active categories |
 | GET | `/categories/:slug` | Public | Category by slug |
 
+| GET | `/auth/me` | User (Bearer token) | Current user profile |
+| POST | `/auth/register` | Public | Register + get tokens |
+| POST | `/auth/login` | Public | Login + get tokens |
+| POST | `/auth/refresh` | Refresh cookie | New access token |
+| POST | `/auth/logout` | Public | Revoke session |
+
 Legacy `/api/health` redirects to `/api/v1/health`.
+
+**JWT strategy:** access token in JSON response (frontend memory), refresh token in HttpOnly cookie.
 
 ## Planned modules
 

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 import { createApiRouter, notFoundHandler, errorHandler } from './api.js';
@@ -14,7 +15,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '5000', 10),
-  clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5173',
+  clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5180',
   isProduction: process.env.NODE_ENV === 'production',
 };
 
@@ -30,6 +31,7 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: env.clientUrl, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
 app.use(
   pinoHttp({
     logger,
