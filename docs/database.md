@@ -2,6 +2,8 @@
 
 Schema lives in a single file: [`database/schema.sql`](../database/schema.sql)
 
+Uses **plain PostgreSQL SQL** only — no PL/pgSQL functions or triggers. `updated_at` is set by the Node.js backend.
+
 Seed data: [`database/seed.sql`](../database/seed.sql)
 
 ## Commands

@@ -1,4 +1,28 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Link, Outlet } from 'react-router-dom';
+import axios from 'axios';
+
+// Fallback when DB/Neon is slow or offline — replaced automatically when API responds
+const FALLBACK_CATEGORIES = [
+  { id: 1, name: 'Electronics', slug: 'electronics', icon: '📱' },
+  { id: 2, name: 'Mobile Phones', slug: 'mobile-phones', icon: '📱' },
+  { id: 3, name: 'Laptops', slug: 'laptops', icon: '💻' },
+  { id: 4, name: 'Furniture', slug: 'furniture', icon: '🛋' },
+  { id: 5, name: 'Vehicles', slug: 'vehicles', icon: '🚗' },
+  { id: 6, name: 'Books', slug: 'books', icon: '📚' },
+  { id: 7, name: 'Clothing', slug: 'clothing', icon: '👕' },
+  { id: 8, name: 'Appliances', slug: 'appliances', icon: '🔌' },
+  { id: 9, name: 'Sports', slug: 'sports', icon: '⚽' },
+  { id: 10, name: 'Musical Instruments', slug: 'musical-instruments', icon: '🎸' },
+  { id: 11, name: 'Home & Garden', slug: 'home-garden', icon: '🏡' },
+  { id: 12, name: 'Other', slug: 'other', icon: '📦' },
+];
+
+async function fetchCategories() {
+  const { data } = await axios.get('/api/v1/categories', { timeout: 8000 });
+  if (data?.success && Array.isArray(data.data) && data.data.length) return data.data;
+  throw new Error('No categories returned');
+}
 
 const companyLinks = [
   { label: 'About Us', to: '/about' },
@@ -101,6 +125,32 @@ function Footer() {
 }
 
 function HomePage() {
+  const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
+  const [dataSource, setDataSource] = useState('fallback');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLiveCategories() {
+      try {
+        const live = await fetchCategories();
+        if (!cancelled) {
+          setCategories(live);
+          setDataSource('live');
+        }
+      } catch {
+        if (!cancelled) setDataSource('fallback');
+      }
+    }
+
+    loadLiveCategories();
+    const retry = setInterval(loadLiveCategories, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(retry);
+    };
+  }, []);
+
   return (
     <div className="home">
       <section className="hero">
@@ -121,6 +171,28 @@ function HomePage() {
           <p className="hero__note">Search coming in Phase 8</p>
         </div>
       </section>
+
+      <section className="categories">
+        <div className="container">
+          <div className="categories__head">
+            <h2>Browse categories</h2>
+            <span className={`categories__badge categories__badge--${dataSource}`}>
+              {dataSource === 'live' ? 'Live from database' : 'Offline preview — connecting…'}
+            </span>
+          </div>
+          <ul className="categories__grid">
+            {categories.map((cat) => (
+              <li key={cat.slug}>
+                <Link to={`/categories/${cat.slug}`} className="categories__card">
+                  <span className="categories__icon" aria-hidden="true">{cat.icon || '📦'}</span>
+                  <span>{cat.name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       <section className="trust">
         <div className="container trust__grid">
           <article className="trust__card">

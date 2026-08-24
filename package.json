@@ -13,6 +13,8 @@
     "format": "prettier --write \"**/*.{js,jsx,json,md,css,html}\"",
     "db:migrate": "npm run db:migrate -w backend",
     "db:seed": "npm run db:seed -w backend",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
     "db:setup": "npm run db:migrate && npm run db:seed"
   },
   "devDependencies": {

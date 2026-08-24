@@ -58,6 +58,10 @@ export function createApiRouter() {
         service: 'ferilo-api',
         version: '1',
         database: dbStatus,
+        hint:
+          dbStatus === 'disconnected'
+            ? 'Start PostgreSQL and run npm run db:setup for categories and other data routes.'
+            : undefined,
         timestamp: new Date().toISOString(),
       });
     }),
@@ -114,7 +118,7 @@ export function errorHandler(err, req, res, _next, { logger, isProduction }) {
   let code = err.code || 'INTERNAL_ERROR';
   let message = err.message || 'An unexpected error occurred.';
 
-  // PostgreSQL errors
+  // PostgreSQL / connection errors
   if (err.code === '23505') {
     status = 409;
     code = 'DUPLICATE_ENTRY';
@@ -123,10 +127,22 @@ export function errorHandler(err, req, res, _next, { logger, isProduction }) {
     status = 400;
     code = 'INVALID_REFERENCE';
     message = 'Referenced record does not exist.';
+  } else if (err.code === '42P01') {
+    status = 503;
+    code = 'SCHEMA_NOT_READY';
+    message = 'Database tables are missing. Run: npm run db:setup';
+  } else if (err.code === '3D000') {
+    status = 503;
+    code = 'DATABASE_NOT_FOUND';
+    message = 'Database "ferilo" does not exist. Create it in PostgreSQL first.';
+  } else if (err.code === '28P01') {
+    status = 503;
+    code = 'DATABASE_AUTH_FAILED';
+    message = 'Database login failed. Check DATABASE_URL in .env';
   } else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
     status = 503;
     code = 'DATABASE_UNAVAILABLE';
-    message = 'Database is unavailable.';
+    message = 'PostgreSQL is not running. Start PostgreSQL, then run: npm run db:setup';
   }
 
   if (!err.isOperational) {

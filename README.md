@@ -36,8 +36,28 @@ ferilo/
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL 16+ (Phase 2 onward)
+- PostgreSQL 16+ ([download](https://www.postgresql.org/download/windows/))
 - npm 10+
+
+## Database setup (beginner)
+
+Full step-by-step guide: **[docs/database-setup.md](./docs/database-setup.md)**
+
+Quick start with Docker:
+
+```powershell
+npm run db:up          # start PostgreSQL in Docker
+npm run db:setup       # create tables + seed data
+npm run dev
+```
+
+Default Docker connection in `.env`:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ferilo
+```
+
+Schema uses **plain PostgreSQL SQL only** (no PL/pgSQL triggers). The homepage shows **fallback categories instantly**, then switches to live database data when the API is ready (useful when Neon wakes from sleep).
 
 ## Quick start
 
@@ -55,7 +75,7 @@ npm run db:setup
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:5180
 - Backend health: http://localhost:5000/api/health
 
 ## Environment variables

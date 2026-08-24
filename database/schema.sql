@@ -377,31 +377,4 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs (created_at DESC);
 
--- ─── Updated_at trigger ──────────────────────────────────────
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
-CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-DROP TRIGGER IF EXISTS trg_user_profiles_updated_at ON user_profiles;
-CREATE TRIGGER trg_user_profiles_updated_at BEFORE UPDATE ON user_profiles
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-DROP TRIGGER IF EXISTS trg_products_updated_at ON products;
-CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-DROP TRIGGER IF EXISTS trg_offers_updated_at ON offers;
-CREATE TRIGGER trg_offers_updated_at BEFORE UPDATE ON offers
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-DROP TRIGGER IF EXISTS trg_orders_updated_at ON orders;
-CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON orders
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- updated_at columns are set by the Node.js backend on UPDATE (no PL/pgSQL triggers).
