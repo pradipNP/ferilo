@@ -1535,14 +1535,124 @@ function AdminOrdersPage() {
   );
 }
 
-function StaticPage({ title, children }) {
+function StaticPage({ title, children, wide = false }) {
   return (
     <div className="dashboard">
-      <div className="container narrow">
+      <div className={`container ${wide ? 'static-page' : 'narrow'}`}>
         <h1>{title}</h1>
-        <div className="product-detail__desc">{children}</div>
+        <div className="static-page__body">{children}</div>
       </div>
     </div>
+  );
+}
+
+function AboutPage() {
+  return (
+    <StaticPage title="About Us" wide>
+      <p className="static-page__lead">
+        FERILO is Nepal&apos;s verified peer-to-peer marketplace for second-hand goods.
+        Our mission is simple: <strong>Buy. Sell. Give it another life.</strong>
+      </p>
+
+      <h2>Who we are</h2>
+      <p>
+        We started FERILO to make local buying and selling safer and easier across the
+        Lumbini region — especially Rupandehi and Kapilvastu. Too many great items sit
+        unused while buyers struggle to find trusted sellers nearby. FERILO connects
+        neighbours through verified accounts, clear listings, and moderated trades.
+      </p>
+
+      <h2>What we offer</h2>
+      <ul>
+        <li><strong>Verified members</strong> — identity checks help you know who you are dealing with.</li>
+        <li><strong>Local focus</strong> — browse by city across Bhairahawa, Butwal, Lumbini, Tilottama, Taulihawa, and more.</li>
+        <li><strong>Offers &amp; messaging</strong> — negotiate fairly and chat before you commit.</li>
+        <li><strong>Meetup or delivery</strong> — arrange a public meetup or request a delivery quote.</li>
+        <li><strong>Reviews &amp; reports</strong> — reputation and reporting tools keep the community honest.</li>
+      </ul>
+
+      <h2>Where we serve</h2>
+      <p>
+        We currently focus on <strong>Rupandehi</strong> and <strong>Kapilvastu</strong>
+        (Lumbini Province), including:
+      </p>
+      <ul>
+        <li>Bhairahawa, Butwal, Lumbini, Tilottama, Sainamaina, Devdaha, Manigram</li>
+        <li>Taulihawa, Krishnanagar, Kapilvastu, Bahadurganj</li>
+      </ul>
+
+      <h2>Our values</h2>
+      <ul>
+        <li><strong>Trust first</strong> — verification, moderation, and clear rules.</li>
+        <li><strong>Reuse over waste</strong> — every sale keeps an item in use longer.</li>
+        <li><strong>Local community</strong> — support buyers and sellers near you.</li>
+        <li><strong>Fair dealing</strong> — honest photos, honest prices, honest handovers.</li>
+      </ul>
+
+      <h2>Need help?</h2>
+      <p>
+        Visit our <Link to="/help">Help Center</Link>, read{' '}
+        <Link to="/help/safety">Safety Tips</Link>, or{' '}
+        <Link to="/contact">Contact Us</Link> if you need support.
+      </p>
+    </StaticPage>
+  );
+}
+
+function ContactPage() {
+  return (
+    <StaticPage title="Contact Us" wide>
+      <p className="static-page__lead">
+        Questions about your account, a listing, an order, or verification?
+        We are here to help.
+      </p>
+
+      <div className="contact-cards">
+        <div className="contact-card">
+          <h2>Email</h2>
+          <p>
+            <a href="mailto:support@ferilo.local">support@ferilo.local</a>
+          </p>
+          <p className="contact-card__meta">Best for account, order, and listing issues.</p>
+          <p className="contact-card__meta">Typical reply within 1–2 business days.</p>
+        </div>
+        <div className="contact-card">
+          <h2>Phone &amp; WhatsApp</h2>
+          <p>
+            <a href="tel:+977715500123">+977 71-5500123</a>
+          </p>
+          <p>
+            <a href="https://wa.me/9779800000000" target="_blank" rel="noreferrer">
+              WhatsApp: +977 980-0000000
+            </a>
+          </p>
+          <p className="contact-card__meta">Sun–Fri, 10:00–17:00 NPT</p>
+        </div>
+        <div className="contact-card">
+          <h2>Office</h2>
+          <p>
+            FERILO Support Desk<br />
+            Traffic Chowk area, Butwal<br />
+            Rupandehi, Lumbini Province<br />
+            Nepal
+          </p>
+          <p className="contact-card__meta">Visits by appointment only.</p>
+        </div>
+      </div>
+
+      <h2>Before you write</h2>
+      <ul>
+        <li>Include your registered email and order or listing ID when relevant.</li>
+        <li>For safety concerns or scams, use <Link to="/app/reports">My Reports</Link> (after login) or email us with screenshots.</li>
+        <li>Quick answers: <Link to="/help">Help Center</Link>, <Link to="/help/how-to-buy">How to Buy</Link>, <Link to="/help/how-to-sell">How to Sell</Link>.</li>
+      </ul>
+
+      <h2>Business &amp; partnerships</h2>
+      <p>
+        For press, partnerships, or delivery partners, email{' '}
+        <a href="mailto:hello@ferilo.local">hello@ferilo.local</a>.
+      </p>
+    </StaticPage>
   );
 }
 
@@ -3046,12 +3156,28 @@ function MyListingsPage() {
     load();
   };
 
+  const activeCount = listings.filter((p) => p.status === 'ACTIVE').length;
+  const draftCount = listings.filter((p) => p.status === 'DRAFT').length;
+  const otherCount = listings.length - activeCount - draftCount;
+  const countParts = [];
+  if (activeCount) countParts.push(`${activeCount} active`);
+  if (draftCount) countParts.push(`${draftCount} draft`);
+  if (otherCount) countParts.push(`${otherCount} other`);
+
   return (
     <div className="dashboard">
       <div className="container">
         <div className="categories__head">
           <h1>My Listings</h1>
-          <Link to="/app/listings/new" className="header__btn header__btn--primary">+ New listing</Link>
+          <div className="listings-head__actions">
+            {!loading && (
+              <span className="listings-head__count">
+                {listings.length} total
+                {countParts.length > 0 ? ` · ${countParts.join(' · ')}` : ''}
+              </span>
+            )}
+            <Link to="/app/listings/new" className="header__btn header__btn--primary">+ New listing</Link>
+          </div>
         </div>
         {loading ? (
           <p className="auth-loading">Loading…</p>
@@ -3351,8 +3477,8 @@ export default function App() {
               <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
               <Route path="/admin/listings" element={<AdminRoute><AdminListingsPage /></AdminRoute>} />
               <Route path="/admin/orders" element={<AdminRoute><AdminOrdersPage /></AdminRoute>} />
-              <Route path="/about" element={<StaticPage title="About FERILO"><p>FERILO is a verified peer-to-peer marketplace for second-hand goods in Nepal. Buy. Sell. Give it another life.</p></StaticPage>} />
-              <Route path="/contact" element={<StaticPage title="Contact Us"><p>Email us at support@ferilo.local for help with accounts, listings, or orders.</p></StaticPage>} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
               <Route path="/help" element={<StaticPage title="Help Center"><p>Browse safely, meet in public places, and verify sellers before paying. Use Reports if something looks wrong.</p></StaticPage>} />
               <Route path="/help/how-to-buy" element={<StaticPage title="How to Buy"><p>Search or browse, message the seller, make an offer if negotiable, then place a meetup or delivery order.</p></StaticPage>} />
               <Route path="/help/how-to-sell" element={<StaticPage title="How to Sell"><p>Verify your identity, create a listing with clear photos, confirm orders promptly, and complete the handover.</p></StaticPage>} />

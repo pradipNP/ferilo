@@ -90,5 +90,12 @@ INSERT INTO city_distances (from_city, to_city, distance_km) VALUES
   ('Krishnanagar', 'Taulihawa', 18),
   ('Kapilvastu', 'Kapilvastu', 0),
   ('Kapilvastu', 'Taulihawa', 5),
-  ('Kapilvastu', 'Bhairahawa', 27)
+  ('Kapilvastu', 'Bhairahawa', 27),
+  ('Manigram', 'Manigram', 0),
+  ('Manigram', 'Butwal', 10),
+  ('Manigram', 'Bhairahawa', 20),
+  ('Bahadurganj', 'Bahadurganj', 0),
+  ('Bahadurganj', 'Taulihawa', 20),
+  ('Bahadurganj', 'Krishnanagar', 12),
+  ('Bahadurganj', 'Bhairahawa', 40)
 ON CONFLICT (from_city, to_city) DO NOTHING;

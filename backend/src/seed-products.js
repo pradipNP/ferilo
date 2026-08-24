@@ -1,19 +1,25 @@
 /**
- * Demo product seed — 15+ ACTIVE listings per category for search/filter testing.
+ * Demo product seed — ACTIVE listings per category for search/filter testing.
  * Products are owned by the FERILO admin account so you can edit them while logged in.
+ * Every listing gets at least one random photo under uploads/products.
  * Run: npm run db:seed-products -w backend
  */
-import dotenv from 'dotenv';
+import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import { pool } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+const projectRoot = path.resolve(__dirname, '../..');
+dotenv.config({ path: path.resolve(projectRoot, '.env') });
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@ferilo.local';
 const LEGACY_SEED_EMAIL = process.env.SEED_SELLER_EMAIL ?? 'seed@ferilo.local';
 const PER_CATEGORY = Math.max(15, parseInt(process.env.SEED_PRODUCTS_PER_CATEGORY || '15', 10));
+const IMAGES_PER_PRODUCT = Math.max(1, parseInt(process.env.SEED_IMAGES_PER_PRODUCT || '2', 10));
+const productImageDir = path.resolve(projectRoot, process.env.PRODUCT_IMAGE_DIR || 'uploads/products');
 
 const CITIES = [
   { city: 'Bhairahawa', district: 'Rupandehi' },
@@ -22,9 +28,11 @@ const CITIES = [
   { city: 'Tilottama', district: 'Rupandehi' },
   { city: 'Sainamaina', district: 'Rupandehi' },
   { city: 'Devdaha', district: 'Rupandehi' },
+  { city: 'Manigram', district: 'Rupandehi' },
   { city: 'Taulihawa', district: 'Kapilvastu' },
   { city: 'Krishnanagar', district: 'Kapilvastu' },
   { city: 'Kapilvastu', district: 'Kapilvastu' },
+  { city: 'Bahadurganj', district: 'Kapilvastu' },
 ];
 
 const CONDITIONS = ['NEW_LIKE', 'GOOD', 'FAIR', 'POOR'];
@@ -288,10 +296,49 @@ const PRODUCT_TEMPLATES = {
 function buildDescription(title, categoryName, city) {
   return (
     `Well-maintained ${title} listed on FERILO in the ${categoryName} category. ` +
-    `Located in ${city}. Ideal for buyers looking for verified second-hand deals in Nepal. ` +
-    `Item has been checked and described honestly. Meet-up or delivery available within the valley. ` +
+    `Located in ${city}. Ideal for buyers looking for verified second-hand deals in Rupandehi and Kapilvastu. ` +
+    `Item has been checked and described honestly. Meet-up or delivery available nearby. ` +
     `Contact seller through FERILO for more photos or questions.`
   );
+}
+
+async function downloadRandomPhoto(seed, destPath) {
+  const url = `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600.jpg`;
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Image download failed (${res.status}) for ${seed}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  await fs.promises.writeFile(destPath, buf);
+}
+
+async function attachProductImages(client, productId) {
+  const dir = path.join(productImageDir, productId);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const count = 1 + Math.floor(Math.random() * IMAGES_PER_PRODUCT); // 1..IMAGES_PER_PRODUCT
+  for (let i = 0; i < count; i++) {
+    const filename = `${crypto.randomUUID()}.jpg`;
+    const absPath = path.join(dir, filename);
+    const storageKey = path.join('products', productId, filename).replace(/\\/g, '/');
+    const url = `/uploads/products/${productId}/${filename}`;
+    const seed = `${productId}-${i}-${Math.floor(Math.random() * 100000)}`;
+
+    try {
+      await downloadRandomPhoto(seed, absPath);
+    } catch {
+      // Fallback: tiny valid JPEG so listings never ship without a photo.
+      const tinyJpeg = Buffer.from(
+        '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBUQEBAVFhUVFRUVFRUVFRUWFxUVFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OGxAQGy0lHyUtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAAEAAQMBIgACEQEDEQH/xAAbAAACAwEBAQAAAAAAAAAAAAADBAECBQYAB//EABUBAQEAAAAAAAAAAAAAAAAAAAAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEAMQAAAB0H//xAAbEAACAgMBAAAAAAAAAAAAAAABAgADBBEFEv/aAAgBAQABPwC2Z5m5uVhZ0lQZbG5n0gf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AH//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AH//2Q==',
+        'base64',
+      );
+      await fs.promises.writeFile(absPath, tinyJpeg);
+    }
+
+    await client.query(
+      `INSERT INTO product_images (product_id, url, storage_key, is_primary, sort_order, width, height)
+       VALUES ($1, $2, $3, $4, $5, 800, 600)`,
+      [productId, url, storageKey, i === 0, i],
+    );
+  }
 }
 
 async function ensureAdminSeller(client) {
@@ -316,23 +363,27 @@ async function ensureAdminSeller(client) {
 }
 
 async function clearPreviousSeedListings(client, adminId) {
-  // Remove prior demo inventory owned by admin (seeded descriptions only).
-  await client.query(
-    `DELETE FROM products
-     WHERE seller_id = $1
-       AND description LIKE 'Well-maintained % listed on FERILO in the %'`,
-    [adminId],
+  const { rows } = await client.query(
+    `SELECT id FROM products
+     WHERE (seller_id = $1 AND description LIKE 'Well-maintained % listed on FERILO in the %')
+        OR seller_id IN (SELECT id FROM users WHERE email = $2)`,
+    [adminId, LEGACY_SEED_EMAIL],
   );
 
-  // Also clear leftover Demo Seller inventory from older seeds.
-  await client.query(
-    `DELETE FROM products
-     WHERE seller_id IN (SELECT id FROM users WHERE email = $1)`,
-    [LEGACY_SEED_EMAIL],
-  );
+  for (const row of rows) {
+    fs.rmSync(path.join(productImageDir, row.id), { recursive: true, force: true });
+  }
+
+  if (rows.length) {
+    await client.query(
+      `DELETE FROM products WHERE id = ANY($1::uuid[])`,
+      [rows.map((r) => r.id)],
+    );
+  }
 }
 
 async function seedProducts() {
+  fs.mkdirSync(productImageDir, { recursive: true });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -345,6 +396,8 @@ async function seedProducts() {
     );
 
     let totalInserted = 0;
+    let totalImages = 0;
+    let cityIndex = 0;
 
     for (const category of categories) {
       const templates = PRODUCT_TEMPLATES[category.slug];
@@ -356,19 +409,22 @@ async function seedProducts() {
       const items = templates.slice(0, PER_CATEGORY);
       for (let i = 0; i < PER_CATEGORY; i++) {
         const template = items[i % items.length];
-        const location = CITIES[i % CITIES.length];
+        // Round-robin every city so none stay at 0 listings.
+        const location = CITIES[cityIndex % CITIES.length];
+        cityIndex += 1;
         const condition = template.condition || CONDITIONS[i % CONDITIONS.length];
-        const price = template.price + (i % 5) * 250;
+        const price = template.price + (i % 5) * 250 + Math.floor(Math.random() * 500);
         const sizeTier = SIZE_TIERS[i % SIZE_TIERS.length];
         const publishedDaysAgo = i + (category.id * 2);
         const isSubcategory = ['mobile-phones', 'laptops', 'computers'].includes(category.slug);
 
-        await client.query(
+        const { rows } = await client.query(
           `INSERT INTO products (
             seller_id, category_id, subcategory_id, title, description, condition, price,
             is_negotiable, brand, delivery_size_tier, delivery_eligible, requires_trolley,
             meetup_available, city, district, status, published_at, view_count
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'ACTIVE', NOW() - ($16 || ' days')::interval, $17)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'ACTIVE', NOW() - ($16 || ' days')::interval, $17)
+          RETURNING id`,
           [
             sellerId,
             isSubcategory ? 1 : category.id,
@@ -386,16 +442,30 @@ async function seedProducts() {
             location.city,
             location.district,
             publishedDaysAgo,
-            Math.floor(Math.random() * 120),
+            Math.floor(Math.random() * 180),
           ],
         );
+
+        const productId = rows[0].id;
+        await attachProductImages(client, productId);
+        totalImages += IMAGES_PER_PRODUCT;
         totalInserted++;
+
+        if (totalInserted % 25 === 0) {
+          console.log(`… seeded ${totalInserted} products with photos`);
+        }
       }
     }
 
     await client.query('COMMIT');
-    console.log(`Seeded ${totalInserted} ACTIVE products (${PER_CATEGORY} per category, ${categories.length} categories).`);
-    console.log(`Seller: ${ADMIN_EMAIL} (FERILO Admin) — log in as admin to manage these listings.`);
+
+    const { rows: cityCounts } = await pool.query(
+      `SELECT city, COUNT(*)::int AS c FROM products WHERE status = 'ACTIVE' GROUP BY city ORDER BY c DESC, city`,
+    );
+    console.log(`Seeded ${totalInserted} ACTIVE products across ${CITIES.length} cities.`);
+    console.log(`Photos attached (target ~${IMAGES_PER_PRODUCT}/listing).`);
+    console.log('City counts:', Object.fromEntries(cityCounts.map((r) => [r.city, r.c])));
+    console.log(`Seller: ${ADMIN_EMAIL} (FERILO Admin)`);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
