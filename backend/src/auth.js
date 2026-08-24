@@ -48,20 +48,22 @@ function signAccessToken(user, config) {
 }
 
 function setRefreshCookie(res, token, config) {
+  const crossSite = process.env.NODE_ENV === 'production';
   res.cookie('refreshToken', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: crossSite,
+    sameSite: crossSite ? 'none' : 'strict',
     maxAge: parseDurationMs(config.refreshExpiresIn),
     path: '/api/v1/auth',
   });
 }
 
 function clearRefreshCookie(res) {
+  const crossSite = process.env.NODE_ENV === 'production';
   res.cookie('refreshToken', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: crossSite,
+    sameSite: crossSite ? 'none' : 'strict',
     maxAge: 0,
     path: '/api/v1/auth',
   });

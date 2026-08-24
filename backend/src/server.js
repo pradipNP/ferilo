@@ -17,6 +17,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '5000', 10),
   clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5180',
+  publicApiUrl: (process.env.PUBLIC_API_URL || '').replace(/\/$/, ''),
   isProduction: process.env.NODE_ENV === 'production',
 };
 

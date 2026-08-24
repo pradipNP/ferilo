@@ -54,6 +54,12 @@ const productBodySchema = z.object({
   district: z.string().min(1).max(100),
 });
 
+function absoluteMediaUrl(url) {
+  if (!url || /^https?:\/\//i.test(url)) return url;
+  const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+  return base ? `${base}${url.startsWith('/') ? url : `/${url}`}` : url;
+}
+
 function mapProduct(row, images = []) {
   return {
     id: row.id,
@@ -89,7 +95,7 @@ function mapProduct(row, images = []) {
       : undefined,
     images: images.map((img) => ({
       id: img.id,
-      url: img.url,
+      url: absoluteMediaUrl(img.url),
       isPrimary: img.is_primary,
       sortOrder: img.sort_order,
     })),

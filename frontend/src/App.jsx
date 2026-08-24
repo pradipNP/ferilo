@@ -1,6 +1,5 @@
 import { useEffect, useState, createContext, useContext, useMemo, useRef } from 'react';
 import { Routes, Route, Link, NavLink, Outlet, Navigate, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
-import axios from 'axios';
 import {
   fetchMe,
   loginRequest,
@@ -8,6 +7,7 @@ import {
   logoutRequest,
   refreshAccessToken,
   clearAccessToken,
+  setAccessToken,
   updateProfile,
   fetchVerificationStatus,
   submitVerification,
@@ -68,7 +68,13 @@ import {
   fetchAdminOrders,
   fetchAdminReports,
   updateAdminReport,
+  fetchCategoriesPublic,
+  fetchAreasPublic,
+  fetchFeaturedProductsPublic,
+  subscribeDataSource,
+  getDataSource,
 } from './api';
+import { FALLBACK_CATEGORIES } from './fallbackData';
 
 const AuthContext = createContext(null);
 const FavoritesContext = createContext(null);
@@ -286,43 +292,6 @@ function FavoriteButton({ productId, sellerId, className = '' }) {
   );
 }
 
-// Fallback when DB/Neon is slow or offline
-const FALLBACK_CATEGORIES = [
-  { id: 1, name: 'Electronics', slug: 'electronics', icon: '📱' },
-  { id: 2, name: 'Mobile Phones', slug: 'mobile-phones', icon: '📱' },
-  { id: 3, name: 'Laptops', slug: 'laptops', icon: '💻' },
-  { id: 4, name: 'Furniture', slug: 'furniture', icon: '🛋' },
-  { id: 5, name: 'Vehicles', slug: 'vehicles', icon: '🚗' },
-  { id: 6, name: 'Books', slug: 'books', icon: '📚' },
-  { id: 7, name: 'Clothing', slug: 'clothing', icon: '👕' },
-  { id: 8, name: 'Appliances', slug: 'appliances', icon: '🔌' },
-  { id: 9, name: 'Sports', slug: 'sports', icon: '⚽' },
-  { id: 10, name: 'Musical Instruments', slug: 'musical-instruments', icon: '🎸' },
-  { id: 11, name: 'Home & Garden', slug: 'home-garden', icon: '🏡' },
-  { id: 12, name: 'Other', slug: 'other', icon: '📦' },
-];
-
-async function fetchCategoriesPublic() {
-  const { data } = await axios.get('/api/v1/categories', { timeout: 8000 });
-  if (data?.success && Array.isArray(data.data) && data.data.length) return data.data;
-  throw new Error('No categories returned');
-}
-
-async function fetchAreasPublic() {
-  const { data } = await axios.get('/api/v1/areas', { timeout: 8000 });
-  if (data?.success && Array.isArray(data.data)) return data.data;
-  throw new Error('No areas returned');
-}
-
-async function fetchFeaturedProductsPublic() {
-  const { data } = await axios.get('/api/v1/products', {
-    timeout: 8000,
-    params: { sort: 'popular', limit: 8 },
-  });
-  if (data?.success && Array.isArray(data.data)) return data.data;
-  throw new Error('No featured products returned');
-}
-
 const CONDITIONS = [
   { value: 'NEW_LIKE', label: 'Like New' },
   { value: 'GOOD', label: 'Good' },
@@ -425,6 +394,17 @@ function AuthProvider({ children }) {
         const me = await fetchMe();
         setUser(me);
       } catch {
+        // Restore portfolio offline demo session if present
+        try {
+          const raw = sessionStorage.getItem('ferilo_offline_user');
+          if (raw) {
+            setAccessToken('offline-demo-token');
+            setUser(JSON.parse(raw));
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
         clearAccessToken();
         setUser(null);
       } finally {
@@ -530,6 +510,25 @@ function AreaSelect() {
   );
 }
 
+function DataSourceBadge() {
+  const [dataSource, setDataSource] = useState(getDataSource);
+
+  useEffect(() => subscribeDataSource(setDataSource), []);
+
+  return (
+    <span
+      className={`categories__badge categories__badge--${dataSource}`}
+      title={
+        dataSource === 'live'
+          ? 'Connected to the live API and database'
+          : 'Showing portfolio backup data while the API/database wakes up or is offline'
+      }
+    >
+      {dataSource === 'live' ? 'Live from database' : 'Offline preview — connecting…'}
+    </span>
+  );
+}
+
 function SubNavLink({ to, children, end = false }) {
   return (
     <NavLink
@@ -553,6 +552,7 @@ function Header() {
             <span className="header__logo-mark">F</span>
             <span className="header__logo-text">FERILO</span>
           </Link>
+          <DataSourceBadge />
           <AreaSelect />
           <HeaderSearch />
           <div className="header__actions">
@@ -656,7 +656,6 @@ function Footer() {
 function HomePage() {
   const { setArea } = useArea();
   const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
-  const [dataSource, setDataSource] = useState('fallback');
   const [areaStats, setAreaStats] = useState([]);
   const [featured, setFeatured] = useState([]);
 
@@ -673,20 +672,15 @@ function HomePage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      try {
-        const [liveCategories, liveAreas, liveFeatured] = await Promise.all([
-          fetchCategoriesPublic(),
-          fetchAreasPublic().catch(() => []),
-          fetchFeaturedProductsPublic().catch(() => []),
-        ]);
-        if (!cancelled) {
-          setCategories(liveCategories);
-          setAreaStats(liveAreas);
-          setFeatured(liveFeatured);
-          setDataSource('live');
-        }
-      } catch {
-        if (!cancelled) setDataSource('fallback');
+      const [cats, areas, featuredItems] = await Promise.all([
+        fetchCategoriesPublic(),
+        fetchAreasPublic(),
+        fetchFeaturedProductsPublic(),
+      ]);
+      if (!cancelled) {
+        setCategories(cats);
+        setAreaStats(areas);
+        setFeatured(featuredItems);
       }
     }
     load();
@@ -707,9 +701,7 @@ function HomePage() {
         <div className="container">
           <div className="categories__head">
             <h2>Browse categories</h2>
-            <span className={`categories__badge categories__badge--${dataSource}`}>
-              {dataSource === 'live' ? 'Live from database' : 'Offline preview — connecting…'}
-            </span>
+            <DataSourceBadge />
           </div>
           <ul className="categories__grid">
             {categories.map((cat) => (
@@ -1796,9 +1788,12 @@ function ProductListingPage({ fixedCategoryId, pageTitle, categoryIcon }) {
             {pageTitle || 'Browse listings'}
           </h1>
           {!loading && (
-            <p className="browse-head__count">
-              {meta.total} {meta.total === 1 ? 'listing' : 'listings'} found
-            </p>
+            <>
+              <DataSourceBadge />
+              <p className="browse-head__count">
+                {meta.total} {meta.total === 1 ? 'listing' : 'listings'} found
+              </p>
+            </>
           )}
         </div>
 

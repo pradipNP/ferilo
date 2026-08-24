@@ -135,17 +135,24 @@ Or use Neon SQL Editor → paste contents of `database/schema.sql` then `databas
 
 ---
 
-## Website backup data (Neon cold start)
+## Website backup data (Neon / Render cold start)
 
-Neon free tier can **sleep** when idle. First request may take a few seconds.
+Free Neon and Render tiers can **sleep** when idle. First request may take several seconds.
 
-FERILO handles this on the homepage:
+FERILO includes portfolio **offline preview** data for:
 
-1. **Instant:** show hardcoded fallback categories
-2. **Background:** fetch live data from `/api/v1/categories`
-3. **When Neon responds:** UI automatically switches to live database data
+- Categories, cities, products, featured listings
+- Favorites, offers, messages, orders, notifications, reports
+- Admin stats / sample users
 
-No extra action needed — this is built into the frontend.
+Behavior:
+
+1. **Instant:** show hardcoded backup data and badge **Offline preview — connecting…**
+2. **Background:** try the live API (8s timeout) and retry periodically
+3. **When API/DB responds:** switch to real data and badge **Live from database**
+4. **Login while offline:** any login/register that times out opens a demo session so dashboard pages still work for portfolio demos
+
+Writes (create listing, place order, etc.) are blocked in offline demo mode with a clear message.
 
 ---
 

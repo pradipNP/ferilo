@@ -60,6 +60,10 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ferilo
 
 Schema uses **plain PostgreSQL SQL only** (no PL/pgSQL triggers). The homepage shows **fallback categories instantly**, then switches to live database data when the API is ready (useful when Neon wakes from sleep).
 
+## Deploy (free portfolio)
+
+Step-by-step: **[docs/deployment.md](./docs/deployment.md)** — Neon (DB) + Render (API) + Cloudflare Pages (frontend).
+
 ## Quick start
 
 ```bash

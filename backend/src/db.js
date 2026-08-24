@@ -12,6 +12,12 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl:
+    process.env.DATABASE_SSL === 'true'
+    || process.env.DATABASE_URL?.includes('neon.tech')
+    || process.env.DATABASE_URL?.includes('sslmode=require')
+      ? { rejectUnauthorized: false }
+      : undefined,
 });
 
 export async function testConnection() {

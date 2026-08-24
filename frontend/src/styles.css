@@ -46,6 +46,8 @@ button { cursor: pointer; }
 .header__logo { display: flex; align-items: center; gap: var(--space-sm); font-weight: 700; color: var(--color-primary); flex-shrink: 0; }
 .header__logo-mark { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: var(--color-primary); color: var(--color-accent); border-radius: var(--radius-sm); font-size: 1.125rem; }
 .header__logo-text { font-size: 1.25rem; letter-spacing: 0.04em; }
+.header .categories__badge { flex-shrink: 0; display: none; }
+@media (min-width: 900px) { .header .categories__badge { display: inline-flex; } }
 .header__area { display: block; flex-shrink: 0; }
 .header__area select { max-width: 130px; padding: 0.5rem 0.625rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; font-weight: 600; color: var(--color-primary); background: var(--color-bg); }
 .header__area select:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; border-color: var(--color-accent); }
