@@ -4,6 +4,7 @@ import { pool, testConnection } from './db.js';
 import { attachAuthRoutes } from './auth.js';
 import { attachProfileRoutes, multerErrorHandler } from './profile.js';
 import { attachProductRoutes } from './products.js';
+import { attachFavoriteRoutes } from './favorites.js';
 
 // ─── Errors & response helpers ─────────────────────────────
 export class AppError extends Error {
@@ -106,6 +107,7 @@ export function createApiRouter() {
   attachAuthRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachProfileRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
   attachProductRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
+  attachFavoriteRoutes(router, { asyncHandler, validate, sendSuccess, AppError });
 
   return router;
 }

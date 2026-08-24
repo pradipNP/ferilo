@@ -503,4 +503,4 @@ export function attachProductRoutes(router, { asyncHandler, validate, sendSucces
   );
 }
 
-export { productImageDir };
+export { productImageDir, mapProduct, productSelect, getProductImages };

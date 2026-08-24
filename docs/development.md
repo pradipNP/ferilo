@@ -39,6 +39,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 8 complete** — Search and filters: full-text search, category/location/condition/price filters, sort, pagination, header search, category browse pages.
+**Phase 9 complete** — Favorites: save/unsave listings, favorites page, heart buttons on browse and detail.
 
-**Next: Phase 9** — Favorites.
+**Next: Phase 10** — Offers and negotiation.

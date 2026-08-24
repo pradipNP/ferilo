@@ -182,3 +182,23 @@ export async function fetchCategoryBySlug(slug) {
   const { data } = await api.get(`/categories/${slug}`);
   return data.data;
 }
+
+export async function fetchFavoriteIds() {
+  const { data } = await api.get('/favorites/ids');
+  return data.data;
+}
+
+export async function fetchFavorites() {
+  const { data } = await api.get('/favorites');
+  return data.data;
+}
+
+export async function addFavorite(productId) {
+  const { data } = await api.post(`/favorites/${productId}`);
+  return data.data;
+}
+
+export async function removeFavorite(productId) {
+  const { data } = await api.delete(`/favorites/${productId}`);
+  return data.data;
+}

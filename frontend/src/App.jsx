@@ -26,12 +26,117 @@ import {
   deleteProductImage,
   fetchCategories,
   fetchCategoryBySlug,
+  fetchFavoriteIds,
+  fetchFavorites,
+  addFavorite,
+  removeFavorite,
 } from './api';
 
 const AuthContext = createContext(null);
+const FavoritesContext = createContext(null);
 
 function useAuth() {
   return useContext(AuthContext);
+}
+
+function useFavorites() {
+  return useContext(FavoritesContext);
+}
+
+function FavoritesProvider({ children }) {
+  const { user } = useAuth();
+  const [favoriteIds, setFavoriteIds] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const refreshFavorites = async () => {
+    if (!user) {
+      setFavoriteIds([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const ids = await fetchFavoriteIds();
+      setFavoriteIds(ids);
+    } catch {
+      setFavoriteIds([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setFavoriteIds([]);
+      return undefined;
+    }
+    setLoading(true);
+    fetchFavoriteIds()
+      .then((ids) => { if (!cancelled) setFavoriteIds(ids); })
+      .catch(() => { if (!cancelled) setFavoriteIds([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const isFavorite = (productId) => favoriteIds.includes(productId);
+
+  const toggleFavorite = async (productId) => {
+    if (isFavorite(productId)) {
+      await removeFavorite(productId);
+      setFavoriteIds((prev) => prev.filter((id) => id !== productId));
+      return false;
+    }
+    await addFavorite(productId);
+    setFavoriteIds((prev) => [...prev, productId]);
+    return true;
+  };
+
+  return (
+    <FavoritesContext.Provider value={{ favoriteIds, isFavorite, toggleFavorite, refreshFavorites, loading }}>
+      {children}
+    </FavoritesContext.Provider>
+  );
+}
+
+function FavoriteButton({ productId, sellerId, className = '' }) {
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const active = isFavorite(productId);
+  const isOwnListing = user && sellerId && user.id === sellerId;
+
+  if (isOwnListing) return null;
+
+  const handleClick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setBusy(true);
+    try {
+      await toggleFavorite(productId);
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Could not update favorites.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={`favorite-btn ${active ? 'favorite-btn--active' : ''} ${className}`.trim()}
+      onClick={handleClick}
+      disabled={busy}
+      aria-label={active ? 'Remove from favorites' : 'Save to favorites'}
+      aria-pressed={active}
+    >
+      {active ? '♥' : '♡'}
+    </button>
+  );
 }
 
 // Fallback when DB/Neon is slow or offline
@@ -212,6 +317,7 @@ function Header() {
         <HeaderSearch />
         <nav className="header__nav" aria-label="Main navigation">
           <Link to="/browse" className="header__nav-link">Browse</Link>
+          {user && <Link to="/app/favorites" className="header__nav-link">Favorites</Link>}
           <Link to="/help" className="header__nav-link">Help</Link>
         </nav>
         <div className="header__actions">
@@ -446,6 +552,10 @@ function DashboardPage() {
             <h2>My Listings</h2>
             <p>Create and manage your products.</p>
           </Link>
+          <Link to="/app/favorites" className="trust__card dashboard__link">
+            <h2>Saved Listings</h2>
+            <p>View items you have saved for later.</p>
+          </Link>
           <Link to="/app/listings/new" className="trust__card dashboard__link">
             <h2>Post an Ad</h2>
             <p>Sell something — verification required.</p>
@@ -674,7 +784,7 @@ function ProductGrid({ products }) {
   return (
     <ul className="product-grid">
       {products.map((p) => (
-        <li key={p.id}>
+        <li key={p.id} className="product-grid__item">
           <Link to={`/products/${p.id}`} className="product-card">
             <div className="product-card__img">
               {p.images?.[0]?.url ? (
@@ -682,6 +792,7 @@ function ProductGrid({ products }) {
               ) : (
                 <span className="product-card__placeholder">No image</span>
               )}
+              <FavoriteButton productId={p.id} sellerId={p.seller?.id} className="product-card__favorite" />
             </div>
             <div className="product-card__body">
               <h2>{p.title}</h2>
@@ -953,7 +1064,10 @@ function ProductDetailPage() {
           )}
         </div>
         <div className="product-detail__info">
-          <h1>{product.title}</h1>
+          <div className="product-detail__head">
+            <h1>{product.title}</h1>
+            <FavoriteButton productId={product.id} sellerId={product.seller?.id} className="favorite-btn--large" />
+          </div>
           <p className="product-card__price">{formatPrice(product.price)}</p>
           <p className="product-card__meta">
             {product.condition} · {product.city}, {product.district}
@@ -970,6 +1084,77 @@ function ProductDetailPage() {
           </dl>
           <p className="auth-subtitle">Seller: {product.seller?.displayName || 'Unknown'}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function FavoritesPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const { refreshFavorites } = useFavorites();
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    fetchFavorites()
+      .then(setItems)
+      .catch(() => setError('Failed to load saved listings.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleRemove = async (productId) => {
+    try {
+      await removeFavorite(productId);
+      setItems((prev) => prev.filter((p) => p.id !== productId));
+      await refreshFavorites();
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Could not remove favorite.');
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <h1>Saved listings</h1>
+        <p className="dashboard__meta">Listings you saved to review or buy later.</p>
+        {error && <p className="auth-error">{error}</p>}
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="auth-subtitle">No saved listings yet. Browse items and tap ♡ to save them.</p>
+        ) : (
+          <ul className="product-grid">
+            {items.map((p) => (
+              <li key={p.id} className="product-grid__item">
+                <Link to={`/products/${p.id}`} className="product-card">
+                  <div className="product-card__img">
+                    {p.images?.[0]?.url ? (
+                      <img src={p.images[0].url} alt="" loading="lazy" />
+                    ) : (
+                      <span className="product-card__placeholder">No image</span>
+                    )}
+                  </div>
+                  <div className="product-card__body">
+                    <h2>{p.title}</h2>
+                    <p className="product-card__price">{formatPrice(p.price)}</p>
+                    <p className="product-card__meta">{p.condition.replace('_', ' ').toLowerCase()} · {p.city}</p>
+                  </div>
+                </Link>
+                <button
+                  type="button"
+                  className="header__btn header__btn--ghost favorites-page__remove"
+                  onClick={() => handleRemove(p.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -1264,23 +1449,26 @@ function Layout() {
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/browse" element={<BrowsePage />} />
-          <Route path="/categories/:slug" element={<CategoryPage />} />
-          <Route path="/products/:id" element={<ProductDetailPage />} />
-          <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-          <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-          <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
-          <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
-          <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
-          <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
-          <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
-        </Route>
-      </Routes>
+      <FavoritesProvider>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/browse" element={<BrowsePage />} />
+            <Route path="/categories/:slug" element={<CategoryPage />} />
+            <Route path="/products/:id" element={<ProductDetailPage />} />
+            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+            <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+            <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/app/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+            <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
+            <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
+            <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
+            <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
+            <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
+          </Route>
+        </Routes>
+      </FavoritesProvider>
     </AuthProvider>
   );
 }
