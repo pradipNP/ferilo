@@ -1,5 +1,5 @@
-import { useEffect, useState, createContext, useContext } from 'react';
-import { Routes, Route, Link, Outlet, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState, createContext, useContext, useMemo } from 'react';
+import { Routes, Route, Link, Outlet, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   fetchMe,
@@ -25,6 +25,7 @@ import {
   uploadProductImages,
   deleteProductImage,
   fetchCategories,
+  fetchCategoryBySlug,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -68,6 +69,57 @@ const SIZE_TIERS = [
   { value: 'LARGE', label: 'Large' },
   { value: 'EXTRA_LARGE', label: 'Extra Large' },
 ];
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'price_asc', label: 'Price: low to high' },
+  { value: 'price_desc', label: 'Price: high to low' },
+];
+
+function filtersFromSearchParams(searchParams, fixedCategoryId) {
+  return {
+    q: searchParams.get('q') || '',
+    categoryId: fixedCategoryId ? String(fixedCategoryId) : (searchParams.get('categoryId') || ''),
+    city: searchParams.get('city') || '',
+    district: searchParams.get('district') || '',
+    condition: searchParams.get('condition') || '',
+    minPrice: searchParams.get('minPrice') || '',
+    maxPrice: searchParams.get('maxPrice') || '',
+    sort: searchParams.get('sort') || 'newest',
+    verifiedOnly: searchParams.get('verifiedOnly') === 'true',
+    page: searchParams.get('page') || '1',
+  };
+}
+
+function searchParamsFromFilters(filters) {
+  const params = new URLSearchParams();
+  if (filters.q.trim()) params.set('q', filters.q.trim());
+  if (filters.categoryId) params.set('categoryId', filters.categoryId);
+  if (filters.city.trim()) params.set('city', filters.city.trim());
+  if (filters.district.trim()) params.set('district', filters.district.trim());
+  if (filters.condition) params.set('condition', filters.condition);
+  if (filters.minPrice !== '') params.set('minPrice', filters.minPrice);
+  if (filters.maxPrice !== '') params.set('maxPrice', filters.maxPrice);
+  if (filters.sort && filters.sort !== 'newest') params.set('sort', filters.sort);
+  if (filters.verifiedOnly) params.set('verifiedOnly', 'true');
+  if (filters.page && filters.page !== '1') params.set('page', filters.page);
+  return params;
+}
+
+function buildProductQuery(filters) {
+  const params = { limit: 24, page: Number(filters.page) || 1 };
+  if (filters.q.trim()) params.q = filters.q.trim();
+  if (filters.categoryId) params.categoryId = filters.categoryId;
+  if (filters.city.trim()) params.city = filters.city.trim();
+  if (filters.district.trim()) params.district = filters.district.trim();
+  if (filters.condition) params.condition = filters.condition;
+  if (filters.minPrice !== '') params.minPrice = filters.minPrice;
+  if (filters.maxPrice !== '') params.maxPrice = filters.maxPrice;
+  if (filters.sort) params.sort = filters.sort;
+  if (filters.verifiedOnly) params.verifiedOnly = true;
+  return params;
+}
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString('en-NP')}`;
@@ -122,6 +174,31 @@ function AuthProvider({ children }) {
   );
 }
 
+function HeaderSearch() {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (query.trim()) params.set('q', query.trim());
+    navigate(params.toString() ? `/browse?${params.toString()}` : '/browse');
+  };
+
+  return (
+    <form className="header__search" onSubmit={handleSubmit}>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search listings…"
+        aria-label="Search listings"
+      />
+      <button type="submit" className="header__search-btn">Search</button>
+    </form>
+  );
+}
+
 function Header() {
   const { user, logout } = useAuth();
 
@@ -132,6 +209,7 @@ function Header() {
           <span className="header__logo-mark">F</span>
           <span className="header__logo-text">FERILO</span>
         </Link>
+        <HeaderSearch />
         <nav className="header__nav" aria-label="Main navigation">
           <Link to="/browse" className="header__nav-link">Browse</Link>
           <Link to="/help" className="header__nav-link">Help</Link>
@@ -588,52 +666,265 @@ function VerifiedRoute({ children }) {
   return children;
 }
 
-function BrowsePage() {
+function ProductGrid({ products }) {
+  if (!products.length) {
+    return <p className="auth-subtitle">No listings match your filters. Try adjusting your search.</p>;
+  }
+
+  return (
+    <ul className="product-grid">
+      {products.map((p) => (
+        <li key={p.id}>
+          <Link to={`/products/${p.id}`} className="product-card">
+            <div className="product-card__img">
+              {p.images?.[0]?.url ? (
+                <img src={p.images[0].url} alt="" loading="lazy" />
+              ) : (
+                <span className="product-card__placeholder">No image</span>
+              )}
+            </div>
+            <div className="product-card__body">
+              <h2>{p.title}</h2>
+              <p className="product-card__price">{formatPrice(p.price)}</p>
+              <p className="product-card__meta">{p.condition.replace('_', ' ').toLowerCase()} · {p.city}</p>
+              {p.seller?.verificationStatus === 'VERIFIED' && (
+                <span className="badge badge--verified">Verified seller</span>
+              )}
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ProductListingPage({ fixedCategoryId, pageTitle, categoryIcon }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [meta, setMeta] = useState({ page: 1, limit: 24, total: 0 });
   const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState(() => filtersFromSearchParams(searchParams, fixedCategoryId));
+
+  const activeFilters = useMemo(
+    () => filtersFromSearchParams(searchParams, fixedCategoryId),
+    [searchParams, fixedCategoryId],
+  );
+
+  const queryParams = useMemo(() => buildProductQuery(activeFilters), [activeFilters]);
 
   useEffect(() => {
-    fetchProducts({ limit: 24 })
-      .then((r) => setProducts(r.products))
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
+    fetchCategories().then(setCategories).catch(() => setCategories(FALLBACK_CATEGORIES));
   }, []);
+
+  useEffect(() => {
+    setDraft(filtersFromSearchParams(searchParams, fixedCategoryId));
+  }, [searchParams, fixedCategoryId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchProducts(queryParams)
+      .then((result) => {
+        if (cancelled) return;
+        setProducts(result.products);
+        setMeta(result.meta || { page: 1, limit: 24, total: result.products.length });
+      })
+      .catch(() => {
+        if (!cancelled) setProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [queryParams]);
+
+  const handleDraftChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setDraft((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const applyFilters = (e) => {
+    e.preventDefault();
+    setSearchParams(searchParamsFromFilters({ ...draft, page: '1' }));
+  };
+
+  const clearFilters = () => {
+    const cleared = {
+      q: '',
+      categoryId: fixedCategoryId ? String(fixedCategoryId) : '',
+      city: '',
+      district: '',
+      condition: '',
+      minPrice: '',
+      maxPrice: '',
+      sort: 'newest',
+      verifiedOnly: false,
+      page: '1',
+    };
+    setDraft(cleared);
+    setSearchParams(searchParamsFromFilters(cleared));
+  };
+
+  const handleSortChange = (e) => {
+    const sort = e.target.value;
+    const next = { ...activeFilters, sort, page: '1' };
+    setDraft((prev) => ({ ...prev, sort }));
+    setSearchParams(searchParamsFromFilters(next));
+  };
+
+  const goToPage = (page) => {
+    setSearchParams(searchParamsFromFilters({ ...activeFilters, page: String(page) }));
+  };
+
+  const totalPages = Math.max(1, Math.ceil(meta.total / meta.limit));
+  const topLevelCategories = categories.filter((c) => !c.parent_id);
 
   return (
     <div className="dashboard">
       <div className="container">
-        <h1>Browse listings</h1>
-        {loading ? (
-          <p className="auth-loading">Loading…</p>
-        ) : products.length === 0 ? (
-          <p className="auth-subtitle">No active listings yet. Be the first to post!</p>
-        ) : (
-          <ul className="product-grid">
-            {products.map((p) => (
-              <li key={p.id}>
-                <Link to={`/products/${p.id}`} className="product-card">
-                  <div className="product-card__img">
-                    {p.images?.[0]?.url ? (
-                      <img src={p.images[0].url} alt="" loading="lazy" />
-                    ) : (
-                      <span className="product-card__placeholder">No image</span>
-                    )}
-                  </div>
-                  <div className="product-card__body">
-                    <h2>{p.title}</h2>
-                    <p className="product-card__price">{formatPrice(p.price)}</p>
-                    <p className="product-card__meta">{p.condition} · {p.city}</p>
-                    {p.seller?.verificationStatus === 'VERIFIED' && (
-                      <span className="badge badge--verified">Verified seller</span>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="browse-head">
+          <h1>
+            {categoryIcon && <span className="browse-head__icon" aria-hidden="true">{categoryIcon}</span>}
+            {pageTitle || 'Browse listings'}
+          </h1>
+          {!loading && (
+            <p className="browse-head__count">
+              {meta.total} {meta.total === 1 ? 'listing' : 'listings'} found
+            </p>
+          )}
+        </div>
+
+        <div className="browse-layout">
+          <aside className="browse-filters">
+            <h2>Filters</h2>
+            <form className="browse-filters__form" onSubmit={applyFilters}>
+              <label>
+                Search
+                <input name="q" type="search" value={draft.q} onChange={handleDraftChange} placeholder="Title, brand…" />
+              </label>
+              {!fixedCategoryId && (
+                <label>
+                  Category
+                  <select name="categoryId" value={draft.categoryId} onChange={handleDraftChange}>
+                    <option value="">All categories</option>
+                    {topLevelCategories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label>
+                City
+                <input name="city" value={draft.city} onChange={handleDraftChange} placeholder="e.g. Kathmandu" />
+              </label>
+              <label>
+                District
+                <input name="district" value={draft.district} onChange={handleDraftChange} placeholder="e.g. Lalitpur" />
+              </label>
+              <label>
+                Condition
+                <select name="condition" value={draft.condition} onChange={handleDraftChange}>
+                  <option value="">Any condition</option>
+                  {CONDITIONS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="browse-filters__row">
+                <label>
+                  Min price
+                  <input name="minPrice" type="number" min="0" value={draft.minPrice} onChange={handleDraftChange} placeholder="0" />
+                </label>
+                <label>
+                  Max price
+                  <input name="maxPrice" type="number" min="0" value={draft.maxPrice} onChange={handleDraftChange} placeholder="Any" />
+                </label>
+              </div>
+              <label className="checkbox-label">
+                <input name="verifiedOnly" type="checkbox" checked={draft.verifiedOnly} onChange={handleDraftChange} />
+                Verified sellers only
+              </label>
+              <div className="browse-filters__actions">
+                <button type="submit" className="header__btn header__btn--primary">Apply filters</button>
+                <button type="button" className="header__btn header__btn--ghost" onClick={clearFilters}>Clear</button>
+              </div>
+            </form>
+          </aside>
+
+          <section className="browse-results">
+            <div className="browse-toolbar">
+              <label className="browse-toolbar__sort">
+                Sort by
+                <select value={activeFilters.sort} onChange={handleSortChange}>
+                  {SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {loading ? (
+              <p className="auth-loading">Loading…</p>
+            ) : (
+              <>
+                <ProductGrid products={products} />
+                {meta.total > meta.limit && (
+                  <nav className="browse-pagination" aria-label="Pagination">
+                    <button
+                      type="button"
+                      className="header__btn header__btn--ghost"
+                      disabled={meta.page <= 1}
+                      onClick={() => goToPage(meta.page - 1)}
+                    >
+                      Previous
+                    </button>
+                    <span>Page {meta.page} of {totalPages}</span>
+                    <button
+                      type="button"
+                      className="header__btn header__btn--ghost"
+                      disabled={meta.page >= totalPages}
+                      onClick={() => goToPage(meta.page + 1)}
+                    >
+                      Next
+                    </button>
+                  </nav>
+                )}
+              </>
+            )}
+          </section>
+        </div>
       </div>
     </div>
+  );
+}
+
+function BrowsePage() {
+  return <ProductListingPage />;
+}
+
+function CategoryPage() {
+  const { slug } = useParams();
+  const [category, setCategory] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setCategory(null);
+    setError('');
+    fetchCategoryBySlug(slug)
+      .then(setCategory)
+      .catch(() => setError('Category not found.'));
+  }, [slug]);
+
+  if (error) return <div className="container auth-loading">{error}</div>;
+  if (!category) return <div className="container auth-loading">Loading…</div>;
+
+  return (
+    <ProductListingPage
+      fixedCategoryId={category.id}
+      pageTitle={category.name}
+      categoryIcon={category.icon}
+    />
   );
 }
 
@@ -977,6 +1268,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/browse" element={<BrowsePage />} />
+          <Route path="/categories/:slug" element={<CategoryPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />

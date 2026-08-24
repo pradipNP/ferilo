@@ -38,6 +38,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 7 complete** — Product listings: create, edit, publish, images, browse, detail.
+**Phase 8 complete** — Search and filters: full-text search, category/location/condition/price filters, sort, pagination, header search, category browse pages.
 
-**Next: Phase 8** — Search and filter system.
+**Next: Phase 9** — Favorites.

@@ -147,6 +147,86 @@ function requireVerified(AppError) {
   };
 }
 
+const PRODUCT_SORT_OPTIONS = new Set(['newest', 'oldest', 'price_asc', 'price_desc']);
+const PRODUCT_CONDITIONS = new Set(['NEW_LIKE', 'GOOD', 'FAIR', 'POOR']);
+
+function parseProductListQuery(query) {
+  const sort = PRODUCT_SORT_OPTIONS.has(query.sort) ? query.sort : 'newest';
+  const condition = PRODUCT_CONDITIONS.has(query.condition) ? query.condition : null;
+  const minPrice = query.minPrice != null && query.minPrice !== '' ? Number(query.minPrice) : null;
+  const maxPrice = query.maxPrice != null && query.maxPrice !== '' ? Number(query.maxPrice) : null;
+
+  return {
+    page: Math.max(1, parseInt(query.page || '1', 10)),
+    limit: Math.min(50, Math.max(1, parseInt(query.limit || '20', 10))),
+    categoryId: query.categoryId ? parseInt(query.categoryId, 10) : null,
+    q: query.q?.trim() || null,
+    city: query.city?.trim() || null,
+    district: query.district?.trim() || null,
+    condition,
+    minPrice: minPrice != null && !Number.isNaN(minPrice) ? minPrice : null,
+    maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : null,
+    sort,
+    verifiedOnly: query.verifiedOnly === 'true' || query.verifiedOnly === '1',
+  };
+}
+
+function buildProductListQuery(params) {
+  const conditions = [`p.status = 'ACTIVE'`];
+  const values = [];
+  let idx = 1;
+
+  if (params.categoryId) {
+    conditions.push(`(p.category_id = $${idx} OR p.subcategory_id = $${idx})`);
+    values.push(params.categoryId);
+    idx++;
+  }
+  if (params.q) {
+    conditions.push(
+      `to_tsvector('english', coalesce(p.title, '') || ' ' || coalesce(p.description, '') || ' ' || coalesce(p.brand, '')) @@ plainto_tsquery('english', $${idx})`,
+    );
+    values.push(params.q);
+    idx++;
+  }
+  if (params.city) {
+    conditions.push(`p.city ILIKE $${idx}`);
+    values.push(`%${params.city}%`);
+    idx++;
+  }
+  if (params.district) {
+    conditions.push(`p.district ILIKE $${idx}`);
+    values.push(`%${params.district}%`);
+    idx++;
+  }
+  if (params.condition) {
+    conditions.push(`p.condition = $${idx}`);
+    values.push(params.condition);
+    idx++;
+  }
+  if (params.minPrice != null) {
+    conditions.push(`p.price >= $${idx}`);
+    values.push(params.minPrice);
+    idx++;
+  }
+  if (params.maxPrice != null) {
+    conditions.push(`p.price <= $${idx}`);
+    values.push(params.maxPrice);
+    idx++;
+  }
+  if (params.verifiedOnly) {
+    conditions.push(`u.verification_status = 'VERIFIED'`);
+  }
+
+  const orderBy = {
+    newest: 'p.published_at DESC NULLS LAST, p.created_at DESC',
+    oldest: 'p.published_at ASC NULLS LAST, p.created_at ASC',
+    price_asc: 'p.price ASC, p.published_at DESC NULLS LAST',
+    price_desc: 'p.price DESC, p.published_at DESC NULLS LAST',
+  }[params.sort];
+
+  return { where: conditions.join(' AND '), values, orderBy, nextIdx: idx };
+}
+
 export function attachProductRoutes(router, { asyncHandler, validate, sendSuccess, AppError }) {
   const authenticate = createAuthenticate(AppError);
   const verified = requireVerified(AppError);
@@ -154,34 +234,19 @@ export function attachProductRoutes(router, { asyncHandler, validate, sendSucces
   router.get(
     '/products',
     asyncHandler(async (req, res) => {
-      const page = Math.max(1, parseInt(req.query.page || '1', 10));
-      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20', 10)));
-      const offset = (page - 1) * limit;
-      const categoryId = req.query.categoryId ? parseInt(req.query.categoryId, 10) : null;
-      const city = req.query.city?.trim();
+      const params = parseProductListQuery(req.query);
+      const offset = (params.page - 1) * params.limit;
+      const { where, values, orderBy, nextIdx } = buildProductListQuery(params);
 
-      const conditions = [`p.status = 'ACTIVE'`];
-      const values = [];
-      let idx = 1;
-
-      if (categoryId) {
-        conditions.push(`(p.category_id = $${idx} OR p.subcategory_id = $${idx})`);
-        values.push(categoryId);
-        idx++;
-      }
-      if (city) {
-        conditions.push(`p.city ILIKE $${idx}`);
-        values.push(`%${city}%`);
-        idx++;
-      }
-
-      const where = conditions.join(' AND ');
       const countResult = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM products p WHERE ${where}`,
+        `SELECT COUNT(*)::int AS total
+         FROM products p
+         JOIN users u ON u.id = p.seller_id
+         WHERE ${where}`,
         values,
       );
 
-      values.push(limit, offset);
+      const listValues = [...values, params.limit, offset];
       const { rows } = await pool.query(
         `SELECT ${productSelect},
           (SELECT url FROM product_images pi WHERE pi.product_id = p.id AND pi.is_primary = true LIMIT 1) AS primary_image
@@ -190,9 +255,9 @@ export function attachProductRoutes(router, { asyncHandler, validate, sendSucces
          JOIN users u ON u.id = p.seller_id
          LEFT JOIN user_profiles pr ON pr.user_id = p.seller_id
          WHERE ${where}
-         ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        values,
+         ORDER BY ${orderBy}
+         LIMIT $${nextIdx} OFFSET $${nextIdx + 1}`,
+        listValues,
       );
 
       const products = rows.map((row) => ({
@@ -200,8 +265,8 @@ export function attachProductRoutes(router, { asyncHandler, validate, sendSucces
       }));
 
       sendSuccess(res, products, {
-        page,
-        limit,
+        page: params.page,
+        limit: params.limit,
         total: countResult.rows[0].total,
       });
     }),
