@@ -38,6 +38,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 6 complete** — Profile editing, identity verification submit, admin verification queue.
+**Phase 7 complete** — Product listings: create, edit, publish, images, browse, detail.
 
-**Next: Phase 7** — Product listing system.
+**Next: Phase 8** — Search and filter system.

@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 import { createApiRouter, notFoundHandler, errorHandler, multerErrorHandler } from './api.js';
+import { productImageDir } from './products.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -41,6 +42,8 @@ app.use(
 
 // Legacy redirect
 app.get('/api/health', (_req, res) => res.redirect(308, '/api/v1/health'));
+
+app.use('/uploads/products', express.static(productImageDir));
 
 app.use('/api/v1', createApiRouter());
 app.use(multerErrorHandler);

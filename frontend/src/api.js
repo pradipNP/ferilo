@@ -118,3 +118,62 @@ export async function rejectVerification(id, reason) {
   const { data } = await api.patch(`/admin/verifications/${id}/reject`, { reason });
   return data.data;
 }
+
+export async function fetchProducts(params = {}) {
+  const { data } = await api.get('/products', { params });
+  return { products: data.data, meta: data.meta };
+}
+
+export async function fetchProduct(id) {
+  const { data } = await api.get(`/products/${id}`);
+  return data.data;
+}
+
+export async function fetchMyProduct(id) {
+  const { data } = await api.get(`/products/mine/${id}`);
+  return data.data;
+}
+
+export async function fetchMyProducts() {
+  const { data } = await api.get('/products/mine');
+  return data.data;
+}
+
+export async function createProduct(payload) {
+  const { data } = await api.post('/products', payload);
+  return data.data;
+}
+
+export async function updateProduct(id, payload) {
+  const { data } = await api.patch(`/products/${id}`, payload);
+  return data.data;
+}
+
+export async function publishProduct(id) {
+  const { data } = await api.post(`/products/${id}/publish`);
+  return data.data;
+}
+
+export async function deleteProduct(id) {
+  const { data } = await api.delete(`/products/${id}`);
+  return data.data;
+}
+
+export async function uploadProductImages(id, files) {
+  const formData = new FormData();
+  for (const file of files) formData.append('images', file);
+  const { data } = await api.post(`/products/${id}/images`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.data;
+}
+
+export async function deleteProductImage(productId, imageId) {
+  const { data } = await api.delete(`/products/${productId}/images/${imageId}`);
+  return data.data;
+}
+
+export async function fetchCategories() {
+  const { data } = await api.get('/categories');
+  return data.data;
+}

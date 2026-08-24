@@ -1,5 +1,5 @@
 import { useEffect, useState, createContext, useContext } from 'react';
-import { Routes, Route, Link, Outlet, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, Outlet, Navigate, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   fetchMe,
@@ -14,6 +14,17 @@ import {
   fetchAdminVerifications,
   approveVerification,
   rejectVerification,
+  fetchProducts,
+  fetchProduct,
+  fetchMyProduct,
+  fetchMyProducts,
+  createProduct,
+  updateProduct,
+  publishProduct,
+  deleteProduct,
+  uploadProductImages,
+  deleteProductImage,
+  fetchCategories,
 } from './api';
 
 const AuthContext = createContext(null);
@@ -38,10 +49,28 @@ const FALLBACK_CATEGORIES = [
   { id: 12, name: 'Other', slug: 'other', icon: '📦' },
 ];
 
-async function fetchCategories() {
+async function fetchCategoriesPublic() {
   const { data } = await axios.get('/api/v1/categories', { timeout: 8000 });
   if (data?.success && Array.isArray(data.data) && data.data.length) return data.data;
   throw new Error('No categories returned');
+}
+
+const CONDITIONS = [
+  { value: 'NEW_LIKE', label: 'Like New' },
+  { value: 'GOOD', label: 'Good' },
+  { value: 'FAIR', label: 'Fair' },
+  { value: 'POOR', label: 'Poor' },
+];
+
+const SIZE_TIERS = [
+  { value: 'SMALL', label: 'Small' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'LARGE', label: 'Large' },
+  { value: 'EXTRA_LARGE', label: 'Extra Large' },
+];
+
+function formatPrice(price) {
+  return `Rs. ${Number(price).toLocaleString('en-NP')}`;
 }
 
 function AuthProvider({ children }) {
@@ -200,7 +229,7 @@ function HomePage() {
     let cancelled = false;
     async function load() {
       try {
-        const live = await fetchCategories();
+        const live = await fetchCategoriesPublic();
         if (!cancelled) { setCategories(live); setDataSource('live'); }
       } catch {
         if (!cancelled) setDataSource('fallback');
@@ -335,6 +364,14 @@ function DashboardPage() {
           </span>
         </p>
         <div className="dashboard__cards">
+          <Link to="/app/listings" className="trust__card dashboard__link">
+            <h2>My Listings</h2>
+            <p>Create and manage your products.</p>
+          </Link>
+          <Link to="/app/listings/new" className="trust__card dashboard__link">
+            <h2>Post an Ad</h2>
+            <p>Sell something — verification required.</p>
+          </Link>
           <Link to="/app/profile" className="trust__card dashboard__link">
             <h2>Edit Profile</h2>
             <p>Update your name, city, and bio.</p>
@@ -541,6 +578,366 @@ function AdminVerificationsPage() {
   );
 }
 
+function VerifiedRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="container auth-loading">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'ADMIN' && user.verificationStatus !== 'VERIFIED') {
+    return <Navigate to="/app/verification" replace />;
+  }
+  return children;
+}
+
+function BrowsePage() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProducts({ limit: 24 })
+      .then((r) => setProducts(r.products))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <h1>Browse listings</h1>
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : products.length === 0 ? (
+          <p className="auth-subtitle">No active listings yet. Be the first to post!</p>
+        ) : (
+          <ul className="product-grid">
+            {products.map((p) => (
+              <li key={p.id}>
+                <Link to={`/products/${p.id}`} className="product-card">
+                  <div className="product-card__img">
+                    {p.images?.[0]?.url ? (
+                      <img src={p.images[0].url} alt="" loading="lazy" />
+                    ) : (
+                      <span className="product-card__placeholder">No image</span>
+                    )}
+                  </div>
+                  <div className="product-card__body">
+                    <h2>{p.title}</h2>
+                    <p className="product-card__price">{formatPrice(p.price)}</p>
+                    <p className="product-card__meta">{p.condition} · {p.city}</p>
+                    {p.seller?.verificationStatus === 'VERIFIED' && (
+                      <span className="badge badge--verified">Verified seller</span>
+                    )}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProductDetailPage() {
+  const { id } = useParams();
+  const [product, setProduct] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchProduct(id).then(setProduct).catch(() => setError('Product not found.'));
+  }, [id]);
+
+  if (error) return <div className="container auth-loading">{error}</div>;
+  if (!product) return <div className="container auth-loading">Loading…</div>;
+
+  return (
+    <div className="dashboard">
+      <div className="container product-detail">
+        <div className="product-detail__gallery">
+          {product.images?.length ? (
+            product.images.map((img) => (
+              <img key={img.id} src={img.url} alt={product.title} loading="lazy" />
+            ))
+          ) : (
+            <div className="product-card__placeholder">No images</div>
+          )}
+        </div>
+        <div className="product-detail__info">
+          <h1>{product.title}</h1>
+          <p className="product-card__price">{formatPrice(product.price)}</p>
+          <p className="product-card__meta">
+            {product.condition} · {product.city}, {product.district}
+          </p>
+          {product.seller?.verificationStatus === 'VERIFIED' && (
+            <span className="badge badge--verified">Verified seller</span>
+          )}
+          <p className="product-detail__desc">{product.description}</p>
+          <dl className="product-detail__facts">
+            <div><dt>Category</dt><dd>{product.categoryName}</dd></div>
+            {product.brand && <div><dt>Brand</dt><dd>{product.brand}</dd></div>}
+            {product.isNegotiable && <div><dt>Price</dt><dd>Negotiable</dd></div>}
+            <div><dt>Delivery</dt><dd>{product.deliveryEligible ? 'Available' : 'Meetup only'}</dd></div>
+          </dl>
+          <p className="auth-subtitle">Seller: {product.seller?.displayName || 'Unknown'}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MyListingsPage() {
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    fetchMyProducts().then(setListings).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Remove this listing?')) return;
+    await deleteProduct(id);
+    load();
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container">
+        <div className="categories__head">
+          <h1>My Listings</h1>
+          <Link to="/app/listings/new" className="header__btn header__btn--primary">+ New listing</Link>
+        </div>
+        {loading ? (
+          <p className="auth-loading">Loading…</p>
+        ) : listings.length === 0 ? (
+          <p className="auth-subtitle">No listings yet. <Link to="/app/listings/new">Create your first ad</Link></p>
+        ) : (
+          <ul className="admin-list">
+            {listings.map((p) => (
+              <li key={p.id} className="admin-list__item">
+                <div>
+                  <strong>{p.title}</strong>
+                  <p>{formatPrice(p.price)} · {p.status} · {p.city}</p>
+                </div>
+                <div className="admin-list__actions">
+                  <Link to={`/app/listings/${p.id}/edit`} className="header__btn header__btn--ghost">Edit</Link>
+                  {p.status === 'DRAFT' && (
+                    <button type="button" className="header__btn header__btn--primary" onClick={async () => { await publishProduct(p.id); load(); }}>
+                      Publish
+                    </button>
+                  )}
+                  <button type="button" className="header__btn header__btn--ghost" onClick={() => handleDelete(p.id)}>Remove</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ListingFormPage({ editId }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [categories, setCategories] = useState([]);
+  const [pageError, setPageError] = useState('');
+  const [formMessage, setFormMessage] = useState('');
+  const [formError, setFormError] = useState('');
+  const [photosMessage, setPhotosMessage] = useState('');
+  const [photosError, setPhotosError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [productId, setProductId] = useState(editId || null);
+  const [images, setImages] = useState([]);
+  const [form, setForm] = useState({
+    title: '', description: '', categoryId: '', condition: 'GOOD', price: '',
+    city: user?.city || 'Kathmandu', district: user?.district || 'Kathmandu',
+    brand: '', isNegotiable: true, deliverySizeTier: 'SMALL', requiresTrolley: false,
+  });
+
+  useEffect(() => {
+    fetchCategories().then(setCategories).catch(() => {});
+    if (editId) {
+      fetchMyProduct(editId).then((p) => {
+        setForm({
+          title: p.title, description: p.description, categoryId: String(p.categoryId),
+          condition: p.condition, price: String(p.price), city: p.city, district: p.district,
+          brand: p.brand || '', isNegotiable: p.isNegotiable, deliverySizeTier: p.deliverySizeTier,
+          requiresTrolley: p.requiresTrolley,
+        });
+        setImages(p.images || []);
+      }).catch(() => setPageError('Listing not found.'));
+    }
+  }, [editId]);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm({ ...form, [name]: type === 'checkbox' ? checked : value });
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError('');
+    setFormMessage('');
+    try {
+      const payload = {
+        ...form,
+        categoryId: Number(form.categoryId),
+        price: Number(form.price),
+      };
+      let product;
+      if (productId) {
+        product = await updateProduct(productId, payload);
+      } else {
+        product = await createProduct(payload);
+        if (!product?.id) throw new Error('Invalid response from server');
+        setProductId(product.id);
+      }
+      setFormMessage('Listing saved as draft.');
+      return product;
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || err.message || 'Failed to save.');
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImages = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    if (!productId) {
+      setPhotosError('Save the listing first, then upload images.');
+      return;
+    }
+    setSaving(true);
+    setPhotosError('');
+    setPhotosMessage('');
+    try {
+      const product = await uploadProductImages(productId, files);
+      setImages(product.images || []);
+      setPhotosMessage('Images uploaded.');
+    } catch (err) {
+      setPhotosError(err.response?.data?.error?.message || 'Image upload failed.');
+    } finally {
+      setSaving(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveImage = async (imageId) => {
+    if (!productId) return;
+    setSaving(true);
+    setPhotosError('');
+    setPhotosMessage('');
+    try {
+      await deleteProductImage(productId, imageId);
+      setImages((prev) => prev.filter((img) => img.id !== imageId));
+      setPhotosMessage('Photo removed.');
+    } catch (err) {
+      setPhotosError(err.response?.data?.error?.message || 'Failed to remove photo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!productId) {
+      setPhotosError('Save the listing and add at least one image first.');
+      return;
+    }
+    setSaving(true);
+    setPhotosError('');
+    try {
+      await publishProduct(productId);
+      navigate('/app/listings');
+    } catch (err) {
+      setPhotosError(err.response?.data?.error?.message || 'Publish failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="dashboard">
+      <div className="container narrow">
+        <h1>{editId ? 'Edit listing' : 'Create listing'}</h1>
+        {pageError && <p className="auth-error">{pageError}</p>}
+        <form className="auth-form profile-form" onSubmit={handleSave}>
+          <label>Title<input name="title" value={form.title} onChange={handleChange} required minLength={3} /></label>
+          <label>Description<textarea name="description" value={form.description} onChange={handleChange} required minLength={10} rows={5} /></label>
+          <label>Category
+            <select name="categoryId" value={form.categoryId} onChange={handleChange} required>
+              <option value="">Select category</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label>Condition
+            <select name="condition" value={form.condition} onChange={handleChange}>
+              {CONDITIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </label>
+          <label>Price (NPR)<input name="price" type="number" min="0" value={form.price} onChange={handleChange} required /></label>
+          <label>Brand (optional)<input name="brand" value={form.brand} onChange={handleChange} /></label>
+          <label>City<input name="city" value={form.city} onChange={handleChange} required /></label>
+          <label>District<input name="district" value={form.district} onChange={handleChange} required /></label>
+          <label>Delivery size
+            <select name="deliverySizeTier" value={form.deliverySizeTier} onChange={handleChange}>
+              {SIZE_TIERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </label>
+          <label className="checkbox-label">
+            <input name="isNegotiable" type="checkbox" checked={form.isNegotiable} onChange={handleChange} /> Price is negotiable
+          </label>
+          <label className="checkbox-label">
+            <input name="requiresTrolley" type="checkbox" checked={form.requiresTrolley} onChange={handleChange} /> Requires trolley (large item)
+          </label>
+          <button type="submit" className="auth-submit" disabled={saving}>{saving ? 'Saving…' : 'Save draft'}</button>
+          {formMessage && <p className="auth-success form-feedback">{formMessage}</p>}
+          {formError && <p className="auth-error form-feedback">{formError}</p>}
+        </form>
+        {productId && (
+          <div className="listing-images">
+            <h2>Photos ({images.length}/8)</h2>
+            {photosMessage && <p className="auth-success form-feedback">{photosMessage}</p>}
+            {photosError && <p className="auth-error form-feedback">{photosError}</p>}
+            <div className="listing-images__grid">
+              {images.map((img) => (
+                <div key={img.id} className="listing-images__item">
+                  <img src={img.url} alt="" />
+                  <button
+                    type="button"
+                    className="listing-images__remove"
+                    onClick={() => handleRemoveImage(img.id)}
+                    disabled={saving}
+                    aria-label="Remove photo"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <label className="auth-form">
+              Add images
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImages} />
+            </label>
+            <button type="button" className="auth-submit" onClick={handlePublish} disabled={saving || images.length < 1}>
+              Publish listing
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditListingPage() {
+  const { id } = useParams();
+  return <ListingFormPage editId={id} />;
+}
+
 function AdminRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="container auth-loading">Loading…</div>;
@@ -579,9 +976,14 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/browse" element={<BrowsePage />} />
+          <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
           <Route path="/app/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/app/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
+          <Route path="/app/listings/new" element={<ProtectedRoute><VerifiedRoute><ListingFormPage /></VerifiedRoute></ProtectedRoute>} />
+          <Route path="/app/listings/:id/edit" element={<ProtectedRoute><VerifiedRoute><EditListingPage /></VerifiedRoute></ProtectedRoute>} />
           <Route path="/app/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/app/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
           <Route path="/admin/verifications" element={<AdminRoute><AdminVerificationsPage /></AdminRoute>} />
