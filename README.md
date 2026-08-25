@@ -48,6 +48,41 @@ If the backend is unreachable, login still opens a portfolio offline session:
 
 Offline mode uses hardcoded sample data. Writes (create listing, place order, etc.) are blocked with a clear message.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/screenshots/01-home.png" alt="FERILO home hero" />
+      <br /><sub><b>Home</b> — hero & live status</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/screenshots/02-browse-by-city.png" alt="Browse by city" />
+      <br /><sub><b>Browse by city</b> — Lumbini region hubs</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/screenshots/03-featured-listings.png" alt="Featured listings" />
+      <br /><sub><b>Featured listings</b> — product cards</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/screenshots/04-browse-listings.png" alt="Browse listings with filters" />
+      <br /><sub><b>All items</b> — search & filters</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/screenshots/05-user-dashboard.png" alt="User dashboard" />
+      <br /><sub><b>User dashboard</b> — listings, offers, orders</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/screenshots/06-admin-dashboard.png" alt="Admin dashboard" />
+      <br /><sub><b>Admin dashboard</b> — users & moderation</sub>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - Full-stack ecommerce marketplace flows (browse → offer/message → order)
