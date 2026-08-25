@@ -617,8 +617,8 @@ function Footer() {
         <section className="footer__brand" aria-labelledby="footer-brand-heading">
           <h2 id="footer-brand-heading" className="footer__logo">FERILO</h2>
           <p className="footer__tagline">
-            FERILO is Nepal&apos;s verified second-hand marketplace — connecting you to trusted
-            local sellers for cars, property, electronics, furniture, and more.
+            FERILO is an open-source second-hand marketplace demo for Nepal — connecting you to local
+            sellers for electronics, furniture, vehicles, and more. In-app identity checks help build trust; this is not a government-licensed service.
           </p>
         </section>
         <nav className="footer__column" aria-labelledby="footer-company-heading">
@@ -692,9 +692,9 @@ function HomePage() {
     <div className="home">
       <section className="hero">
         <div className="container hero__inner">
-          <p className="hero__eyebrow">Nepal&apos;s Verified Marketplace</p>
+          <p className="hero__eyebrow">Community marketplace demo for Nepal</p>
           <h1 className="hero__title">Buy. Sell. <span className="hero__highlight">Give It Another Life.</span></h1>
-          <p className="hero__subtitle">Discover trusted second-hand deals from verified sellers across Rupandehi, Kapilvastu, and Lumbini.</p>
+          <p className="hero__subtitle">Discover second-hand deals from sellers across Rupandehi, Kapilvastu, and Lumbini. Identity-checked profiles are a platform feature — not a government certification.</p>
         </div>
       </section>
       <section className="categories">
@@ -1542,7 +1542,9 @@ function AboutPage() {
   return (
     <StaticPage title="About Us" wide>
       <p className="static-page__lead">
-        FERILO is Nepal&apos;s verified peer-to-peer marketplace for second-hand goods.
+        FERILO is an open-source peer-to-peer marketplace demo for second-hand goods in Nepal.
+        Members can complete optional in-app identity verification (admin-reviewed documents).
+        That helps build trust on the platform — it is <strong>not</strong> a government license or official certification.
         Our mission is simple: <strong>Buy. Sell. Give it another life.</strong>
       </p>
 
@@ -1551,12 +1553,12 @@ function AboutPage() {
         We started FERILO to make local buying and selling safer and easier across the
         Lumbini region — especially Rupandehi and Kapilvastu. Too many great items sit
         unused while buyers struggle to find trusted sellers nearby. FERILO connects
-        neighbours through verified accounts, clear listings, and moderated trades.
+        neighbours through identity-checked accounts, clear listings, and moderated trades.
       </p>
 
       <h2>What we offer</h2>
       <ul>
-        <li><strong>Verified members</strong> — identity checks help you know who you are dealing with.</li>
+        <li><strong>Identity-checked members</strong> — optional document review by admins (platform trust feature, not a government ID scheme).</li>
         <li><strong>Local focus</strong> — browse by city across Bhairahawa, Butwal, Lumbini, Tilottama, Taulihawa, and more.</li>
         <li><strong>Offers &amp; messaging</strong> — negotiate fairly and chat before you commit.</li>
         <li><strong>Meetup or delivery</strong> — arrange a public meetup or request a delivery quote.</li>

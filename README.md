@@ -2,7 +2,9 @@
 
 **Buy. Sell. Give It Another Life.**
 
-FERILO is an open-source, verified peer-to-peer second-hand marketplace focused on Nepal’s Lumbini region (Rupandehi & Kapilvastu). It includes identity verification, listings, offers, messaging, meetup/delivery orders, reviews, notifications, reports, and an admin dashboard.
+FERILO is an open-source peer-to-peer second-hand marketplace demo focused on Nepal’s Lumbini region (Rupandehi & Kapilvastu). Sellers can complete an **in-app identity verification** workflow (document upload + admin review). That is a **product feature**, not a government license, registration, or official endorsement.
+
+Built as a full-stack learning / portfolio project you can run locally or explore on the live demo: listings, offers, messaging, meetup/delivery orders, reviews, notifications, reports, and an admin dashboard.
 
 ## Live demo
 
@@ -25,7 +27,7 @@ Use these after `npm run db:seed` (local or Neon). Passwords are for exploration
 |------|--------|----------|------------------|
 | Admin | `admin@ferilo.local` | `testing01` | Admin dashboard, verifications, reports, listings moderation |
 | Buyer | `buyer@ferilo.local` | `demo1234` | Browse, favorites, offers, orders, messages |
-| Seller | `seller@ferilo.local` | `demo1234` | Verified seller flows (listings require verification) |
+| Seller | `seller@ferilo.local` | `demo1234` | Seller flows (listings require in-app verification status) |
 
 Optional demo listings (~210 ACTIVE items with photos):
 
@@ -47,7 +49,7 @@ Offline mode uses hardcoded sample data. Writes (create listing, place order, et
 ## Features
 
 - Registration & JWT auth (access token + HttpOnly refresh cookie)
-- Identity verification with admin review
+- Identity verification workflow (user docs + admin review — not a government certification)
 - Product listings, images, categories, search & filters
 - Favorites, offers/negotiation, messaging
 - Orders (meetup & delivery) with delivery quote calculator
