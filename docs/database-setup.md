@@ -38,6 +38,14 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ferilo
 npm run db:setup
 ```
 
+This creates tables, categories, delivery rules, and demo users:
+
+| Email | Password | Role |
+|-------|----------|------|
+| `admin@ferilo.local` | value of `ADMIN_PASSWORD` (default `testing01`) | ADMIN |
+| `buyer@ferilo.local` | `demo1234` | USER (verified) |
+| `seller@ferilo.local` | `demo1234` | USER (verified) |
+
 You should see:
 
 - `Database schema applied successfully.`

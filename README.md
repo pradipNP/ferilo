@@ -2,18 +2,59 @@
 
 **Buy. Sell. Give It Another Life.**
 
-FERILO is a verified peer-to-peer second-hand marketplace built for Nepal. Registered users can buy and sell pre-loved items with identity verification, transparent delivery pricing, offers/negotiation, and admin moderation.
+FERILO is an open-source, verified peer-to-peer second-hand marketplace focused on Nepal’s Lumbini region (Rupandehi & Kapilvastu). It includes identity verification, listings, offers, messaging, meetup/delivery orders, reviews, notifications, reports, and an admin dashboard.
+
+## Live demo
+
+| Service | URL |
+|---------|-----|
+| Website | https://ferilo.pages.dev |
+| API | https://ferilo.onrender.com |
+| Health | https://ferilo.onrender.com/api/v1/health |
+
+**Notes**
+
+- Free Render / Neon tiers can sleep. The first visit may take 30–60 seconds. The UI shows **Offline preview — connecting…** until the API wakes, then **Live from database**.
+- `CLIENT_URL` on Render must be exactly `https://ferilo.pages.dev` (no trailing slash).
+
+## Demo accounts
+
+Use these after `npm run db:seed` (local or Neon). Passwords are for exploration only — change them before any real production use.
+
+| Role | Email | Password | What you can try |
+|------|--------|----------|------------------|
+| Admin | `admin@ferilo.local` | `testing01` | Admin dashboard, verifications, reports, listings moderation |
+| Buyer | `buyer@ferilo.local` | `demo1234` | Browse, favorites, offers, orders, messages |
+| Seller | `seller@ferilo.local` | `demo1234` | Verified seller flows (listings require verification) |
+
+Optional demo listings (~210 ACTIVE items with photos):
+
+```bash
+npm run db:seed-products
+```
+
+### Offline / API-down demo login
+
+If the backend is unreachable, login still opens a portfolio offline session:
+
+| Role | Email | Password |
+|------|--------|----------|
+| Demo buyer | `demo@ferilo.local` | any (e.g. `demo`) |
+| Demo admin | `admin@ferilo.local` | any (e.g. `demo`) — email must contain `admin` |
+
+Offline mode uses hardcoded sample data. Writes (create listing, place order, etc.) are blocked with a clear message.
 
 ## Features
 
-- User registration & JWT authentication (access + HttpOnly refresh)
-- Identity verification workflow with admin review
-- Product listings with images, categories, search & filters
-- Favorites, offers/negotiation, messaging, orders (meetup & delivery)
-- Delivery charge calculator (city distances + trolley fees)
+- Registration & JWT auth (access token + HttpOnly refresh cookie)
+- Identity verification with admin review
+- Product listings, images, categories, search & filters
+- Favorites, offers/negotiation, messaging
+- Orders (meetup & delivery) with delivery quote calculator
 - Reviews & reputation, in-app notifications
-- Reports & admin moderation (users, listings, reports, orders)
-- Rate limiting, Helmet, Zod validation, audit logs
+- Reports & admin moderation
+- Rate limiting, Helmet, Zod validation
+- Portfolio offline fallback when Neon/Render are asleep
 
 ## Tech stack
 
@@ -24,101 +65,103 @@ FERILO is a verified peer-to-peer second-hand marketplace built for Nepal. Regis
 | Database | PostgreSQL |
 | Testing | Node.js built-in test runner |
 
-## Project structure
-
-```
-ferilo/
-├── frontend/src/      # main.jsx, App.jsx, styles.css
-├── backend/src/       # server.js, db.js
-├── database/          # schema.sql, seed.sql
-└── docs/
-```
-
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL 16+ ([download](https://www.postgresql.org/download/windows/))
+- PostgreSQL 16+ (or Docker)
 - npm 10+
-
-## Database setup (beginner)
-
-Full step-by-step guide: **[docs/database-setup.md](./docs/database-setup.md)**
-
-Quick start with Docker:
-
-```powershell
-npm run db:up          # start PostgreSQL in Docker
-npm run db:setup       # create tables + seed data
-npm run dev
-```
-
-Default Docker connection in `.env`:
-
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ferilo
-```
-
-Schema uses **plain PostgreSQL SQL only** (no PL/pgSQL triggers). The homepage shows **fallback categories instantly**, then switches to live database data when the API is ready (useful when Neon wakes from sleep).
-
-## Deploy (free portfolio)
-
-Step-by-step: **[docs/deployment.md](./docs/deployment.md)** — Neon (DB) + Render (API) + Cloudflare Pages (frontend).
-
-### Live API (Render)
-
-| Item | Value |
-|------|--------|
-| API URL | https://ferilo.onrender.com |
-| Health check | https://ferilo.onrender.com/api/v1/health |
-| Admin email | `admin@ferilo.local` |
-| Admin password | `testing01` |
-
-Set on Render (if not already):
-
-- `PUBLIC_API_URL=https://ferilo.onrender.com`
-- `ADMIN_EMAIL=admin@ferilo.local`
-- `ADMIN_PASSWORD=testing01`
-
-`ADMIN_PASSWORD` is applied when you run `npm run db:setup` / `db:seed` against Neon. If login fails with `testing01`, re-run seed with the Neon `DATABASE_URL` so the admin hash updates.
-
-Free Render sleeps when idle — first request can take 30–60s.
 
 ## Quick start
 
 ```bash
-# Clone and install
+git clone https://github.com/pradipNP/ferilo.git
+cd ferilo
 npm install
-
-# Copy environment file
 cp .env.example .env
+```
 
-# Set up PostgreSQL (create database first), then:
+Start Postgres (Docker example):
+
+```bash
+npm run db:up
+```
+
+Create tables, seed categories/delivery rules, and demo users:
+
+```bash
 npm run db:setup
+```
 
-# Run frontend + backend together
+Optional product catalog:
+
+```bash
+npm run db:seed-products
+```
+
+Run the app:
+
+```bash
 npm run dev
 ```
 
-- Frontend: http://localhost:5180
-- Backend health: http://localhost:5000/api/health
+- Frontend: http://localhost:5180  
+- API: http://localhost:5000/api/v1  
+- Health: http://localhost:5000/api/v1/health  
 
-## Environment variables
+Default Docker `DATABASE_URL`:
 
-See [`.env.example`](./.env.example) for all variables. Never commit `.env`.
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ferilo
+```
+
+Never commit a real `.env`. Copy from [`.env.example`](./.env.example).
+
+## Useful commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Frontend + backend |
+| `npm run build` | Production frontend build |
+| `npm run lint` | Lint backend + frontend |
+| `npm test` | Backend tests |
+| `npm run db:migrate` | Apply schema |
+| `npm run db:seed` | Seed categories, zones, admin + demo users |
+| `npm run db:seed-products` | Seed demo listings |
+| `npm run db:setup` | Migrate + seed |
+
+## Deploy (Neon + Render + Cloudflare)
+
+Full guide: **[docs/deployment.md](./docs/deployment.md)**
+
+Current public stack:
+
+| Piece | Host |
+|-------|------|
+| Database | Neon |
+| API | Render (`ferilo.onrender.com`) |
+| Frontend | Cloudflare Pages (`ferilo.pages.dev`) |
+
+## Contributing
+
+Contributions are welcome. See **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
+
+Ideas: issues labeled `good first issue`, UI polish, tests, docs, and deployment improvements.
 
 ## Documentation
 
+- [Contributing](./CONTRIBUTING.md)
+- [Database setup](./docs/database-setup.md)
+- [Deployment](./docs/deployment.md)
 - [Architecture](./docs/architecture.md)
-- [Database](./docs/database.md)
 - [API](./docs/api.md)
+- [Database](./docs/database.md)
 - [Security](./docs/security.md)
 - [Development](./docs/development.md)
-- [Deployment](./docs/deployment.md)
 
-## Development phases
+## Security note
 
-MVP feature set is complete. See [docs/development.md](./docs/development.md) and [docs/deployment.md](./docs/deployment.md).
+Demo passwords are public by design for this portfolio demo. Rotate `JWT_SECRET`, `JWT_REFRESH_SECRET`, and all passwords before any serious production deployment. Do not commit secrets.
 
 ## License
 
-Private portfolio project.
+This project is licensed under the [MIT License](./LICENSE).

@@ -1,11 +1,13 @@
 # Security
 
-## Authentication
+## Demo credentials
+
+Public demo passwords are intentional for this open-source portfolio. Change all secrets before any real production deployment. See the root README for the current demo account table.
 
 - bcrypt password hashing (cost 12)
 - JWT access + refresh token rotation
-- Refresh token in HttpOnly, Secure, SameSite=Strict cookie
-- Account lockout after repeated failed logins
+- Refresh token in HttpOnly cookie (`SameSite=Strict` locally; `SameSite=None; Secure` in production for Cloudflare ↔ Render)
+- Account lockout after repeated failed logins (unlock via SQL or re-seed)
 
 ## Identity documents
 

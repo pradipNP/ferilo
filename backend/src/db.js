@@ -58,13 +58,20 @@ export async function seed() {
     await client.query(sql);
 
     const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@ferilo.local';
-    const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin@123';
+    const adminPassword = process.env.ADMIN_PASSWORD ?? 'testing01';
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
     await client.query(
-      `INSERT INTO users (email, password_hash, role, verification_status, account_status, email_verified_at)
-       VALUES ($1, $2, 'ADMIN', 'VERIFIED', 'ACTIVE', NOW())
-       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = 'ADMIN'`,
+      `INSERT INTO users (email, password_hash, role, verification_status, account_status, email_verified_at,
+         failed_login_attempts, locked_until)
+       VALUES ($1, $2, 'ADMIN', 'VERIFIED', 'ACTIVE', NOW(), 0, NULL)
+       ON CONFLICT (email) DO UPDATE SET
+         password_hash = EXCLUDED.password_hash,
+         role = 'ADMIN',
+         verification_status = 'VERIFIED',
+         account_status = 'ACTIVE',
+         failed_login_attempts = 0,
+         locked_until = NULL`,
       [adminEmail, passwordHash],
     );
 
@@ -72,13 +79,55 @@ export async function seed() {
       `INSERT INTO user_profiles (user_id, display_name, city, district)
        SELECT id, 'FERILO Admin', 'Bhairahawa', 'Rupandehi'
        FROM users WHERE email = $1
-       ON CONFLICT (user_id) DO NOTHING`,
+       ON CONFLICT (user_id) DO UPDATE SET display_name = 'FERILO Admin'`,
       [adminEmail],
     );
 
+    const demoPasswordHash = await bcrypt.hash('demo1234', 12);
+    const demoUsers = [
+      {
+        email: 'buyer@ferilo.local',
+        displayName: 'Demo Buyer',
+        city: 'Butwal',
+        district: 'Rupandehi',
+      },
+      {
+        email: 'seller@ferilo.local',
+        displayName: 'Demo Seller',
+        city: 'Bhairahawa',
+        district: 'Rupandehi',
+      },
+    ];
+
+    for (const demo of demoUsers) {
+      await client.query(
+        `INSERT INTO users (email, password_hash, role, verification_status, account_status, email_verified_at,
+           failed_login_attempts, locked_until)
+         VALUES ($1, $2, 'USER', 'VERIFIED', 'ACTIVE', NOW(), 0, NULL)
+         ON CONFLICT (email) DO UPDATE SET
+           password_hash = EXCLUDED.password_hash,
+           verification_status = 'VERIFIED',
+           account_status = 'ACTIVE',
+           failed_login_attempts = 0,
+           locked_until = NULL`,
+        [demo.email, demoPasswordHash],
+      );
+      await client.query(
+        `INSERT INTO user_profiles (user_id, display_name, city, district)
+         SELECT id, $2, $3, $4 FROM users WHERE email = $1
+         ON CONFLICT (user_id) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           city = EXCLUDED.city,
+           district = EXCLUDED.district`,
+        [demo.email, demo.displayName, demo.city, demo.district],
+      );
+    }
+
     await client.query('COMMIT');
     console.log('Database seeded successfully.');
-    console.log(`Admin login: ${adminEmail}`);
+    console.log(`Admin login: ${adminEmail} / (ADMIN_PASSWORD)`);
+    console.log('Demo buyer:  buyer@ferilo.local / demo1234');
+    console.log('Demo seller: seller@ferilo.local / demo1234');
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
