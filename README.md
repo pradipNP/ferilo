@@ -2,9 +2,11 @@
 
 **Buy. Sell. Give It Another Life.**
 
-FERILO is an open-source peer-to-peer second-hand marketplace demo focused on Nepal’s Lumbini region (Rupandehi & Kapilvastu). Sellers can complete an **in-app identity verification** workflow (document upload + admin review). That is a **product feature**, not a government license, registration, or official endorsement.
+FERILO is an open-source **ecommerce** / marketplace project — a peer-to-peer second-hand shopping platform focused on Nepal’s Lumbini region (Rupandehi & Kapilvastu). Think of it as ecommerce website source code for local classifieds: buyers and sellers, product catalogs, checkout-style orders (meetup or delivery), and an admin panel.
 
-Built as a full-stack learning / portfolio project you can run locally or explore on the live demo: listings, offers, messaging, meetup/delivery orders, reviews, notifications, reports, and an admin dashboard.
+Sellers can complete an **in-app identity verification** workflow (document upload + admin review). That is a **product feature** for trust on the platform, not a government license, registration, or official endorsement.
+
+Built as a full-stack learning / portfolio ecommerce app you can clone, run locally, or explore on the live demo: listings, search & filters, offers, messaging, orders, reviews, notifications, reports, and moderation.
 
 ## Live demo
 
@@ -48,6 +50,7 @@ Offline mode uses hardcoded sample data. Writes (create listing, place order, et
 
 ## Features
 
+- Full-stack ecommerce marketplace flows (browse → offer/message → order)
 - Registration & JWT auth (access token + HttpOnly refresh cookie)
 - Identity verification workflow (user docs + admin review — not a government certification)
 - Product listings, images, categories, search & filters
@@ -66,6 +69,7 @@ Offline mode uses hardcoded sample data. Writes (create listing, place order, et
 | Backend | Node.js, Express, JavaScript, JWT, Zod |
 | Database | PostgreSQL |
 | Testing | Node.js built-in test runner |
+| Type | Open-source ecommerce / C2C marketplace |
 
 ## Prerequisites
 
