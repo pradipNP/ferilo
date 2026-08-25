@@ -311,26 +311,35 @@ async function downloadRandomPhoto(seed, destPath) {
 }
 
 async function attachProductImages(client, productId) {
-  const dir = path.join(productImageDir, productId);
-  fs.mkdirSync(dir, { recursive: true });
+  // For Neon/Render: store public picsum URLs (Render free disk does not keep local uploads).
+  // Set SEED_LOCAL_IMAGES=1 to also save files under uploads/products (local demo only).
+  const useLocalFiles = process.env.SEED_LOCAL_IMAGES === '1';
+  if (useLocalFiles) {
+    const dir = path.join(productImageDir, productId);
+    fs.mkdirSync(dir, { recursive: true });
+  }
 
   const count = 1 + Math.floor(Math.random() * IMAGES_PER_PRODUCT); // 1..IMAGES_PER_PRODUCT
   for (let i = 0; i < count; i++) {
-    const filename = `${crypto.randomUUID()}.jpg`;
-    const absPath = path.join(dir, filename);
-    const storageKey = path.join('products', productId, filename).replace(/\\/g, '/');
-    const url = `/uploads/products/${productId}/${filename}`;
     const seed = `${productId}-${i}-${Math.floor(Math.random() * 100000)}`;
+    const remoteUrl = `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600.jpg`;
+    let url = remoteUrl;
+    let storageKey = `remote/picsum/${seed}`;
 
-    try {
-      await downloadRandomPhoto(seed, absPath);
-    } catch {
-      // Fallback: tiny valid JPEG so listings never ship without a photo.
-      const tinyJpeg = Buffer.from(
-        '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBUQEBAVFhUVFRUVFRUVFRUWFxUVFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OGxAQGy0lHyUtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAAEAAQMBIgACEQEDEQH/xAAbAAACAwEBAQAAAAAAAAAAAAADBAECBQYAB//EABUBAQEAAAAAAAAAAAAAAAAAAAAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEAMQAAAB0H//xAAbEAACAgMBAAAAAAAAAAAAAAABAgADBBEFEv/aAAgBAQABPwC2Z5m5uVhZ0lQZbG5n0gf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AH//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AH//2Q==',
-        'base64',
-      );
-      await fs.promises.writeFile(absPath, tinyJpeg);
+    if (useLocalFiles) {
+      const filename = `${crypto.randomUUID()}.jpg`;
+      const absPath = path.join(productImageDir, productId, filename);
+      storageKey = path.join('products', productId, filename).replace(/\\/g, '/');
+      url = `/uploads/products/${productId}/${filename}`;
+      try {
+        await downloadRandomPhoto(seed, absPath);
+      } catch {
+        const tinyJpeg = Buffer.from(
+          '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBUQEBAVFhUVFRUVFRUVFRUWFxUVFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OGxAQGy0lHyUtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAAEAAQMBIgACEQEDEQH/xAAbAAACAwEBAQAAAAAAAAAAAAADBAECBQYAB//EABUBAQEAAAAAAAAAAAAAAAAAAAAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEAMQAAAB0H//xAAbEAACAgMBAAAAAAAAAAAAAAABAgADBBEFEv/aAAgBAQABPwC2Z5m5uVhZ0lQZbG5n0gf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AH//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AH//2Q==',
+          'base64',
+        );
+        await fs.promises.writeFile(absPath, tinyJpeg);
+      }
     }
 
     await client.query(
