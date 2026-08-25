@@ -1,9 +1,10 @@
 # Create FERILO GitHub issues (run after: gh auth login)
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot\..
 
 function Ensure-Label($name, $color, $description) {
-  gh label create $name --color $color --description $description 2>$null | Out-Null
+  # Ignore "already exists" — do not fail the script
+  cmd /c "gh label create `"$name`" --color $color --description `"$description`" 2>nul"
 }
 
 Write-Host "Creating labels (ok if they already exist)..."
@@ -24,6 +25,7 @@ function New-Issue($title, $labels, $body) {
 }
 
 Write-Host "Creating issues..."
+$ErrorActionPreference = "Stop"
 
 New-Issue "docs: add FAQ for Neon/Render cold start and offline preview badge" "good first issue,documentation" @"
 ### Problem
