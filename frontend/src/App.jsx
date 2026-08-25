@@ -678,9 +678,9 @@ function HomePage() {
         fetchFeaturedProductsPublic(),
       ]);
       if (!cancelled) {
-        setCategories(cats);
-        setAreaStats(areas);
-        setFeatured(featuredItems);
+        setCategories(Array.isArray(cats) ? cats : FALLBACK_CATEGORIES);
+        setAreaStats(Array.isArray(areas) ? areas : []);
+        setFeatured(Array.isArray(featuredItems) ? featuredItems : []);
       }
     }
     load();

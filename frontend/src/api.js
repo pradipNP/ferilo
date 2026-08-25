@@ -79,12 +79,20 @@ function offlineUserForEmail(email = '') {
 async function withFallback(liveFn, fallbackFn) {
   try {
     const result = await liveFn();
+    if (result === undefined || result === null) {
+      throw new Error('Empty live response');
+    }
     markLive();
     return result;
   } catch {
     markFallback();
     return fallbackFn();
   }
+}
+
+function assertArray(value, label = 'data') {
+  if (!Array.isArray(value)) throw new Error(`Expected ${label} array`);
+  return value;
 }
 
 function offlineWriteError(action = 'save changes') {
@@ -297,7 +305,8 @@ export async function fetchProducts(params = {}) {
   return withFallback(
     async () => {
       const { data } = await api.get('/products', { params });
-      return { products: data.data, meta: data.meta };
+      if (!data?.success || !Array.isArray(data.data)) throw new Error('Invalid products response');
+      return { products: data.data, meta: data.meta || { page: 1, limit: 24, total: data.data.length } };
     },
     () => filterFallbackProducts(params),
   );
@@ -307,6 +316,7 @@ export async function fetchProduct(id) {
   return withFallback(
     async () => {
       const { data } = await api.get(`/products/${id}`);
+      if (!data?.success || !data.data?.id) throw new Error('Invalid product response');
       return data.data;
     },
     () => getFallbackProduct(id),
@@ -327,7 +337,8 @@ export async function fetchMyProducts() {
   return withFallback(
     async () => {
       const { data } = await api.get('/products/mine');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid my products response');
+      return assertArray(data.data, 'myProducts');
     },
     () => [...FALLBACK_MY_LISTINGS],
   );
@@ -377,7 +388,8 @@ export async function fetchCategories() {
   return withFallback(
     async () => {
       const { data } = await api.get('/categories');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid categories response');
+      return assertArray(data.data, 'categories');
     },
     () => [...FALLBACK_CATEGORIES],
   );
@@ -387,6 +399,7 @@ export async function fetchCategoryBySlug(slug) {
   return withFallback(
     async () => {
       const { data } = await api.get(`/categories/${slug}`);
+      if (!data?.success || !data.data?.slug) throw new Error('Invalid category response');
       return data.data;
     },
     () => FALLBACK_CATEGORIES.find((c) => c.slug === slug) || FALLBACK_CATEGORIES[0],
@@ -397,7 +410,8 @@ export async function fetchFavoriteIds() {
   return withFallback(
     async () => {
       const { data } = await api.get('/favorites/ids');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid favorite ids response');
+      return assertArray(data.data, 'favoriteIds');
     },
     () => [...FALLBACK_FAVORITE_IDS],
   );
@@ -407,7 +421,8 @@ export async function fetchFavorites() {
   return withFallback(
     async () => {
       const { data } = await api.get('/favorites');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid favorites response');
+      return assertArray(data.data, 'favorites');
     },
     () => getFallbackFavorites(),
   );
@@ -435,7 +450,8 @@ export async function fetchMyOffers() {
   return withFallback(
     async () => {
       const { data } = await api.get('/offers/mine');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid offers response');
+      return assertArray(data.data, 'offers');
     },
     () => [...FALLBACK_OFFERS_MINE],
   );
@@ -445,7 +461,8 @@ export async function fetchIncomingOffers() {
   return withFallback(
     async () => {
       const { data } = await api.get('/offers/incoming');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid incoming offers response');
+      return assertArray(data.data, 'incomingOffers');
     },
     () => [...FALLBACK_OFFERS_INCOMING],
   );
@@ -485,7 +502,8 @@ export async function fetchConversations() {
   return withFallback(
     async () => {
       const { data } = await api.get('/conversations');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid conversations response');
+      return assertArray(data.data, 'conversations');
     },
     () => [...FALLBACK_CONVERSATIONS],
   );
@@ -549,7 +567,8 @@ export async function fetchMyOrders() {
   return withFallback(
     async () => {
       const { data } = await api.get('/orders/mine');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid orders response');
+      return assertArray(data.data, 'orders');
     },
     () => [...FALLBACK_ORDERS_PURCHASES],
   );
@@ -559,7 +578,8 @@ export async function fetchSalesOrders() {
   return withFallback(
     async () => {
       const { data } = await api.get('/orders/sales');
-      return data.data;
+      if (!data?.success) throw new Error('Invalid sales orders response');
+      return assertArray(data.data, 'salesOrders');
     },
     () => [...FALLBACK_ORDERS_SALES],
   );
