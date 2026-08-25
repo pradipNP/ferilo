@@ -115,8 +115,8 @@ Offline mode uses hardcoded sample data. Writes (create listing, place order, et
 ## Quick start
 
 ```bash
-git clone https://github.com/pradipNP/ferilo.git
-cd ferilo
+git clone https://github.com/pradipNP/ferilo-ecommerce-FullstackWebsite.git
+cd ferilo-ecommerce-FullstackWebsite
 npm install
 cp .env.example .env
 ```
