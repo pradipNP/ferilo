@@ -186,7 +186,8 @@ Current public stack:
 
 Contributions are welcome. See **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
-Ideas: issues labeled `good first issue`, UI polish, tests, docs, and deployment improvements.
+Suggested starter tasks: see open GitHub Issues (labels `good first issue`, `help wanted`).  
+Issue ideas for maintainers: [docs/github-issues.md](./docs/github-issues.md).
 
 ## Documentation
 
