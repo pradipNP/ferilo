@@ -543,6 +543,28 @@ function SubNavLink({ to, children, end = false }) {
 
 function Header() {
   const { user, logout } = useAuth();
+  const [navPhoto, setNavPhoto] = useState(() => {
+    try {
+      return localStorage.getItem('ferilo_admin_photo') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const syncPhoto = () => {
+      try {
+        setNavPhoto(localStorage.getItem('ferilo_admin_photo') || null);
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('storage', syncPhoto);
+    return () => window.removeEventListener('storage', syncPhoto);
+  }, []);
+
+  const displayName = user ? (user.displayName || user.email) : '';
+  const initial = displayName ? displayName.trim().charAt(0).toUpperCase() : 'U';
 
   return (
     <header className="header">
@@ -559,8 +581,38 @@ function Header() {
             {user ? (
               <>
                 <NotificationBell />
-                <Link to="/app/dashboard" className="header__user">
-                  {user.displayName || user.email}
+                <Link
+                  to="/app/dashboard"
+                  className="header__user"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <span
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {navPhoto ? (
+                      <img
+                        src={navPhoto}
+                        alt={displayName}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      initial
+                    )}
+                  </span>
+                  <span>{displayName}</span>
                 </Link>
                 <button type="button" className="header__btn header__btn--ghost" onClick={logout}>
                   Logout
