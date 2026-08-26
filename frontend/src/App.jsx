@@ -1241,6 +1241,34 @@ function MyReportsPage() {
 }
 
 function AdminNav() {
+  const { user } = useAuth();
+  const [photo, setPhoto] = useState(() => {
+    try {
+      return localStorage.getItem('ferilo_admin_photo') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const displayName = user?.displayName || user?.email || 'Admin';
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      setPhoto(dataUrl);
+      try {
+        localStorage.setItem('ferilo_admin_photo', dataUrl);
+      } catch {
+        /* ignore storage quota limits */
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const links = [
     { to: '/admin', label: 'Overview' },
     { to: '/admin/verifications', label: 'Verifications' },
@@ -1249,12 +1277,88 @@ function AdminNav() {
     { to: '/admin/listings', label: 'Listings' },
     { to: '/admin/orders', label: 'Orders' },
   ];
+
   return (
-    <nav className="offers-tabs admin-nav" aria-label="Admin">
-      {links.map((l) => (
-        <Link key={l.to} to={l.to} className="offers-tabs__btn">{l.label}</Link>
-      ))}
-    </nav>
+    <div style={{ marginBottom: '1.5rem' }}>
+      {/* Circular Admin Profile Card */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          padding: '16px',
+          background: 'var(--card-bg, #ffffff)',
+          border: '1px solid var(--border-color, #e5e7eb)',
+          borderRadius: '12px',
+          marginBottom: '1rem',
+        }}
+      >
+        {/* Circle avatar container */}
+        <div
+          style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            backgroundColor: '#2563eb',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '32px',
+            fontWeight: '700',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+            border: '2px solid #e5e7eb',
+          }}
+        >
+          {photo ? (
+            <img
+              src={photo}
+              alt={displayName}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <span>{initial}</span>
+          )}
+        </div>
+
+        {/* Name under circle */}
+        <div style={{ textAlign: 'center' }}>
+          <strong style={{ fontSize: '1rem', display: 'block' }}>{displayName}</strong>
+          <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>Administrator</span>
+        </div>
+
+        {/* Upload Button */}
+        <label
+          style={{
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            padding: '4px 10px',
+            backgroundColor: '#f3f4f6',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            color: '#374151',
+          }}
+        >
+          Change photo
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoUpload}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
+
+      {/* Navigation tabs */}
+      <nav className="offers-tabs admin-nav" aria-label="Admin">
+        {links.map((l) => (
+          <Link key={l.to} to={l.to} className="offers-tabs__btn">{l.label}</Link>
+        ))}
+      </nav>
+    </div>
   );
 }
 
