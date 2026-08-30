@@ -189,6 +189,12 @@ Contributions are welcome. See **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 Suggested starter tasks: see open GitHub Issues (labels `good first issue`, `help wanted`).  
 Issue ideas for maintainers: [docs/github-issues.md](./docs/github-issues.md).
 
+## Support / Star the project
+
+If FERILO helps you — as a learning resource, portfolio reference, or marketplace starter — please **star the repository** on GitHub. It helps others discover the project and supports continued development.
+
+[![Star FERILO on GitHub](https://img.shields.io/github/stars/pradipNP/ferilo-ecommerce-FullstackWebsite?style=social&label=Star%20FERILO)](https://github.com/pradipNP/ferilo-ecommerce-FullstackWebsite)
+
 ## Documentation
 
 - [Contributing](./CONTRIBUTING.md)
